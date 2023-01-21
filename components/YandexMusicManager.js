@@ -99,7 +99,6 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 
 				const pngImage = await sharp(body)
 					.resize(COVER_SIZE, COVER_SIZE)
-					// .png()
 					.jpeg({ quality: 100 })
 					.toBuffer();
 
@@ -128,7 +127,7 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 				info: albumInfo,
 				albumPath: app.getUserDataPath("music", filenamify(artist.name), filenamify(albumInfo.title)),
 				cover: {
-					filePath: app.getUserDataPath("temp", "covers", `${albumId}.png`),
+					filePath: app.getUserDataPath("temp", "covers", `${albumId}.jpg`),
 					downloaded: false
 				},
 				processed: false
@@ -176,7 +175,7 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 			await this.outputTrackWithTagsAndCover(albumInfo, trackInfo);
 		}
 
-		app.fs.copyFileSync(albumInfo.cover.filePath, app.path.join(albumInfo.albumPath, "cover.png"));
+		app.fs.copyFileSync(albumInfo.cover.filePath, app.path.join(albumInfo.albumPath, "cover.jpg"));
 
 		albumInfo.processed = true;
 
