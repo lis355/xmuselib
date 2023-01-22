@@ -1,3 +1,4 @@
 module.exports = {
-	startUrl: ""
+	startUrl: "",
+	acronyms: []
 };

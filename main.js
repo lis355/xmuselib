@@ -46,5 +46,6 @@ ndapp({
 		() => new (require("./components/YandexMusicManager"))()
 	],
 	tools: {
+		nameCase: require("./tools/nameCase")
 	}
 });

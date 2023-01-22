@@ -6,10 +6,6 @@ const NodeID3 = require("node-id3");
 
 const COVER_SIZE = 500;
 
-function capitalizeFirstLetter(string) {
-	return string.charAt(0).toUpperCase() + string.slice(1);
-}
-
 module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 	async initialize() {
 		await super.initialize();
@@ -18,6 +14,9 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 		app.db.tracks = app.db.tracks || {};
 
 		app.browserManager.events.on("response", this.processResponse.bind(this));
+
+		// DEBUG
+		setImmediate(async () => this.processAlbum(6796570));
 	}
 
 	async processResponse(params) {
@@ -192,27 +191,22 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 		const trackPosition = trackAlbumInfo.trackPosition.index;
 
 		const metadata = {
-			artist: artist.name,
-			album: albumInfo.info.title,
-			track: app.libs._.padStart(String(trackPosition), 2, "0"),
-			title: trackInfo.info.title,
-			genre: capitalizeFirstLetter(albumInfo.info.genre),
-			date: albumInfo.info.year
+			artist: app.tools.nameCase(artist.name),
+			album: app.tools.nameCase(albumInfo.info.title),
+			trackNumber: app.libs._.padStart(String(trackPosition), 2, "0"),
+			title: app.tools.nameCase(trackInfo.info.title),
+			genre: app.tools.nameCase(albumInfo.info.genre),
+			year: albumInfo.info.year
 		};
 
-		const fileName = filenamify(`${metadata.track}. ${metadata.artist} - ${metadata.album} (${metadata.date}) - ${metadata.title}.mp3`);
+		const fileName = filenamify(`${metadata.trackNumber}. ${metadata.artist} - ${metadata.album} (${metadata.year}) - ${metadata.title}.mp3`);
 		const filePath = app.path.join(albumInfo.albumPath, fileName);
 
 		app.fs.ensureDirSync(albumInfo.albumPath);
 		app.fs.copyFileSync(trackInfo.filePath, filePath);
 
 		NodeID3.write({
-			artist: artist.name,
-			album: albumInfo.info.title,
-			genre: capitalizeFirstLetter(albumInfo.info.genre),
-			title: trackInfo.info.title,
-			trackNumber: app.libs._.padStart(String(trackPosition), 2, "0"),
-			year: albumInfo.info.year,
+			...metadata,
 			image: albumInfo.cover.filePath
 		}, filePath);
 	}
