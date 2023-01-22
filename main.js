@@ -46,7 +46,5 @@ ndapp({
 		() => new (require("./components/YandexMusicManager"))()
 	],
 	tools: {
-		executeShellCommand: require("./tools/executeShellCommand"),
-		formatMetadata: require("./tools/formatMetadata")
 	}
 });

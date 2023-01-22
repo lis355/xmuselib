@@ -2,6 +2,7 @@ const { spawn } = require("child_process");
 
 const filenamify = require("filenamify");
 const sharp = require("sharp");
+const NodeID3 = require("node-id3");
 
 const COVER_SIZE = 500;
 
@@ -59,7 +60,7 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 					args: [trackId]
 				});
 
-				trackInfo = responseResult.tracks ? app.libs._.first(responseResult.tracks) : responseResult.tracks;
+				trackInfo = responseResult.tracks ? app.libs._.first(responseResult.tracks) : responseResult.track;
 
 				this.createTrackInfo(trackInfo);
 			}
@@ -199,24 +200,21 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 			date: albumInfo.info.year
 		};
 
-		const trackWithTagsFilePath = app.getUserDataPath("temp", "track.mp3");
-
 		const fileName = filenamify(`${metadata.track}. ${metadata.artist} - ${metadata.album} (${metadata.date}) - ${metadata.title}.mp3`);
 		const filePath = app.path.join(albumInfo.albumPath, fileName);
 
-		const metadataFilePath = app.getUserDataPath("temp", "meta.txt");
-		app.fs.outputFileSync(metadataFilePath, app.tools.formatMetadata(metadata));
-
 		app.fs.ensureDirSync(albumInfo.albumPath);
+		app.fs.copyFileSync(trackInfo.filePath, filePath);
 
-		// metadata
-		await app.tools.executeShellCommand({ cmd: `ffmpeg -i "${trackInfo.filePath}" -i "${metadataFilePath}" -y -vn -codec:a copy -map_metadata 1 -write_id3v2 1 "${trackWithTagsFilePath}"`, onStdOutData: app.log.info, onStdErrData: app.log.error });
-
-		// cover
-		await app.tools.executeShellCommand({ cmd: `ffmpeg -i "${trackWithTagsFilePath}" -i "${albumInfo.cover.filePath}" -y -map 0:0 -map 1:0 -codec:a copy "${filePath}"`, onStdOutData: app.log.info, onStdErrData: app.log.error });
-
-		app.fs.removeSync(trackWithTagsFilePath);
-		app.fs.removeSync(metadataFilePath);
+		NodeID3.write({
+			artist: artist.name,
+			album: albumInfo.info.title,
+			genre: capitalizeFirstLetter(albumInfo.info.genre),
+			title: trackInfo.info.title,
+			trackNumber: app.libs._.padStart(String(trackPosition), 2, "0"),
+			year: albumInfo.info.year,
+			image: albumInfo.cover.filePath
+		}, filePath);
 	}
 
 	getTrackInfoText(trackId) {
