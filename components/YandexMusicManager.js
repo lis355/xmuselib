@@ -1,10 +1,14 @@
 const { spawn } = require("child_process");
 
-const filenamify = require("filenamify");
+const filenamifyLibrary = require("filenamify");
 const sharp = require("sharp");
 const NodeID3 = require("node-id3");
 
 const COVER_SIZE = 500;
+
+function filenamify(path) {
+	return filenamifyLibrary(path, { maxLength: 1024 });
+}
 
 module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 	async initialize() {
@@ -14,9 +18,12 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 		app.db.tracks = app.db.tracks || {};
 
 		app.browserManager.events.on("response", this.processResponse.bind(this));
+	}
 
-		// DEBUG
-		setImmediate(async () => this.processAlbum(6796570));
+	async run() {
+		await super.run();
+
+		// setImmediate(async () => this.processAlbum(41065, { force: true }));
 	}
 
 	async processResponse(params) {
@@ -157,11 +164,11 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 		this.logToConsoleAndToBrowserConsole(`Track [${this.getTrackInfoText(trackId)}] info created`);
 	}
 
-	async processAlbum(albumId) {
+	async processAlbum(albumId, options) {
 		const albumInfo = app.db.albums[albumId];
 		if (!albumInfo) throw new Error("No albumInfo");
 
-		if (albumInfo.processed) return;
+		if (albumInfo.processed && !app.libs._.get(options, "force", false)) return;
 
 		const albumDownloadedTrackInfos = Object.values(app.db.tracks)
 			.filter(trackInfo => trackInfo.downloaded)
