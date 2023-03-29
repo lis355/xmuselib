@@ -141,6 +141,10 @@ module.exports = class Page extends EventEmitter {
 		return Array.from(this.frames.values()).find(predicate);
 	}
 
+	async bringToFront() {
+		await this.cdp.send("Page.bringToFront");
+	}
+
 	async evaluateOnNewDocument(source) {
 		await this.cdp.send("Page.addScriptToEvaluateOnNewDocument", { source });
 	}

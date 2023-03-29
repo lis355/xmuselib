@@ -38,7 +38,7 @@ module.exports = class Browser extends EventEmitter {
 	async launch(options) {
 		options.args.set("--remote-debugging-port", 0);
 
-		// app.log.info(`BROWSER ${this.options.executablePath} ${this.options.args.toArray().join(" ")}`);
+		// app.log.info(`BROWSER ${options.executablePath}${app.os.EOL}${options.args.toArray().join(app.os.EOL)}`);
 
 		this.browserProcess = spawn(options.executablePath, options.args.toArray(), {
 			// env: process.env

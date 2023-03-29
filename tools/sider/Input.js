@@ -32,11 +32,7 @@ module.exports = class Input {
 		if (typeof text !== "string") throw new Error("Type not a string");
 
 		for (let i = 0; i < text.length; i++) {
-			const key = text[i];
-
-			await this.keyDown(key);
-			await app.tools.delay(getRandomTimeoutInMilliseconds(PRESS_KEY_TIMEOUT_IN_MILLISECONDS, PRESS_KEY_TIMEOUT_RANDOM_IN_MILLISECONDS));
-			await this.keyUp(key);
+			await this.keyPress(text[i]);
 
 			if (i < text.length - 1) {
 				await app.tools.delay(getRandomTimeoutInMilliseconds(TYPE_TEXT_TIMEOUT_IN_MILLISECONDS, TYPE_TEXT_TIMEOUT_RANDOM_IN_MILLISECONDS));
@@ -53,8 +49,8 @@ module.exports = class Input {
 			windowsVirtualKeyCode: info.keyCode,
 			code: info.code,
 			key: info.key,
-			text: key,
-			unmodifiedText: key,
+			text: info.text,
+			unmodifiedText: info.text,
 			autoRepeat: false,
 			location: info.location,
 			isKeypad: info.location === 3
@@ -72,6 +68,12 @@ module.exports = class Input {
 			code: info.code,
 			location: info.location
 		});
+	}
+
+	async keyPress(key) {
+		await this.keyDown(key);
+		await app.tools.delay(getRandomTimeoutInMilliseconds(PRESS_KEY_TIMEOUT_IN_MILLISECONDS, PRESS_KEY_TIMEOUT_RANDOM_IN_MILLISECONDS));
+		await this.keyUp(key);
 	}
 
 	async mouseMove(x, y) {
@@ -124,12 +126,12 @@ function getKeyEventDataForChar(char) {
 	if (!definition) throw new Error(`No info for char ${char}`);
 
 	const description = {
-		modifiers: 0, // NOTE какая то сложная логика в пупитре, пока оставим так
-		key: "",
-		keyCode: 0,
-		code: "",
-		text: "",
-		location: 0
+		modifiers: 0 // NOTE какая то сложная логика в пупитре, пока оставим так
+		// key: "",
+		// keyCode: 0,
+		// code: "",
+		// text: "",
+		// location: 0
 	};
 
 	if (definition.key) {
@@ -144,16 +146,16 @@ function getKeyEventDataForChar(char) {
 		description.code = definition.code;
 	}
 
-	if (definition.location) {
-		description.location = definition.location;
-	}
-
 	if (description.key.length === 1) {
 		description.text = description.key;
 	}
 
 	if (definition.text) {
 		description.text = definition.text;
+	}
+
+	if (definition.location) {
+		description.location = definition.location;
 	}
 
 	return description;
