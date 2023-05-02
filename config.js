@@ -1,4 +1,4 @@
 module.exports = {
-	startUrl: "",
+	yandexAlbumId: 0,
 	acronyms: []
 };

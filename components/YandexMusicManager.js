@@ -5,6 +5,7 @@ const sharp = require("sharp");
 const NodeID3 = require("node-id3");
 
 const COVER_SIZE = 500;
+const DB = {};
 
 function filenamify(path) {
 	return filenamifyLibrary(path, { maxLength: 1024 });
@@ -14,8 +15,8 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 	async initialize() {
 		await super.initialize();
 
-		app.db.albums = app.db.albums || {};
-		app.db.tracks = app.db.tracks || {};
+		DB.albums = DB.albums || {};
+		DB.tracks = DB.tracks || {};
 
 		app.browserManager.events.on("response", this.processResponse.bind(this));
 	}
@@ -23,7 +24,7 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 	async run() {
 		await super.run();
 
-		// setImmediate(async () => this.processAlbum(41065, { force: true }));
+		await app.browserManager.page.navigate(app.path.join("https://music.yandex.ru/album", String(app.config.yandexAlbumId)));
 	}
 
 	async processResponse(params) {
@@ -57,8 +58,11 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 			});
 		} else if (contentTypeHeader &&
 			contentTypeHeader.value === "audio/mpeg") {
+			// получение responseBody должно быть сразу первым обращением к CDP
+			const body = await app.browserManager.page.network.getResponseBody(params.requestId);
+
 			const trackId = requestUrl.searchParams.get("track-id");
-			let trackInfo = app.db.tracks[trackId];
+			let trackInfo = DB.tracks[trackId];
 			if (!trackInfo) {
 				const responseResult = await app.browserManager.page.evaluateInFrame({
 					frame: app.browserManager.page.mainFrame,
@@ -74,13 +78,9 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 			if (!trackInfo) throw new Error("No trackInfo");
 
 			if (!trackInfo.downloaded) {
-				const body = await app.browserManager.page.network.getResponseBody(params.requestId);
-
 				app.fs.outputFileSync(trackInfo.filePath, body);
 
 				trackInfo.downloaded = true;
-
-				app.localDbManager.save();
 
 				this.logToConsoleAndToBrowserConsole(`[${this.getTrackInfoText(trackId)}] downloaded`);
 			} else {
@@ -98,7 +98,7 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 			contentTypeHeader &&
 			contentTypeHeader.value.includes("image")) {
 			const albumId = Number(requestUrl.href.split("/")[5].split(".")[2].split("-")[0]);
-			const albumInfo = app.db.albums[albumId];
+			const albumInfo = DB.albums[albumId];
 			if (!albumInfo) throw new Error("No albumInfo");
 
 			if (!albumInfo.cover.downloaded) {
@@ -113,8 +113,6 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 
 				albumInfo.cover.downloaded = true;
 
-				app.localDbManager.save();
-
 				this.logToConsoleAndToBrowserConsole(`[${this.getCoverInfoText(albumId)}] downloaded`);
 			} else {
 				this.logToConsoleAndToBrowserConsole(`[${this.getCoverInfoText(albumId)}] already downloaded`);
@@ -126,10 +124,10 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 
 	createAlbumInfo(albumInfo) {
 		const albumId = albumInfo.id;
-		if (!app.db.albums[albumId]) {
+		if (!DB.albums[albumId]) {
 			const artist = app.libs._.first(albumInfo.artists);
 
-			app.db.albums[albumId] = {
+			DB.albums[albumId] = {
 				createdAt: app.time.valueOf(),
 				info: albumInfo,
 				albumPath: app.getUserDataPath("music", filenamify(artist.name), filenamify(albumInfo.title)),
@@ -140,37 +138,33 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 				processed: false
 			};
 
-			app.localDbManager.save();
-
 			this.logToConsoleAndToBrowserConsole(`Album [${this.getAlbumInfoText(albumId)}] info created`);
 		}
 	}
 
 	createTrackInfo(trackInfo) {
 		const trackId = trackInfo.id;
-		if (!app.db.tracks[trackId]) {
+		if (!DB.tracks[trackId]) {
 			const filePath = app.getUserDataPath("temp", "tracks", `${trackId}.mp3`);
 
-			app.db.tracks[trackId] = {
+			DB.tracks[trackId] = {
 				createdAt: app.time.valueOf(),
 				info: trackInfo,
 				filePath,
 				downloaded: app.fs.existsSync(filePath)
 			};
-
-			app.localDbManager.save();
 		}
 
 		this.logToConsoleAndToBrowserConsole(`Track [${this.getTrackInfoText(trackId)}] info created`);
 	}
 
 	async processAlbum(albumId, options) {
-		const albumInfo = app.db.albums[albumId];
+		const albumInfo = DB.albums[albumId];
 		if (!albumInfo) throw new Error("No albumInfo");
 
 		if (albumInfo.processed && !app.libs._.get(options, "force", false)) return;
 
-		const albumDownloadedTrackInfos = Object.values(app.db.tracks)
+		const albumDownloadedTrackInfos = Object.values(DB.tracks)
 			.filter(trackInfo => trackInfo.downloaded)
 			.filter(trackInfo => trackInfo.info.albums.find(albumInfo => albumInfo.id === albumId));
 
@@ -185,8 +179,6 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 		app.fs.copyFileSync(albumInfo.cover.filePath, app.path.join(albumInfo.albumPath, "cover.jpg"));
 
 		albumInfo.processed = true;
-
-		app.localDbManager.save();
 
 		spawn("explorer.exe", [albumInfo.albumPath]);
 	}
@@ -219,21 +211,21 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 	}
 
 	getTrackInfoText(trackId) {
-		const trackInfo = app.db.tracks[trackId];
+		const trackInfo = DB.tracks[trackId];
 		const artist = app.libs._.first(trackInfo.info.artists);
 
 		return `${artist.name} - ${trackInfo.info.title}`;
 	}
 
 	getAlbumInfoText(albumId) {
-		const albumInfo = app.db.albums[albumId];
+		const albumInfo = DB.albums[albumId];
 		const artist = app.libs._.first(albumInfo.info.artists);
 
 		return `${artist.name} - ${albumInfo.info.title} (${albumInfo.info.year})`;
 	}
 
 	getCoverInfoText(albumId) {
-		const albumInfo = app.db.albums[albumId];
+		const albumInfo = DB.albums[albumId];
 		const artist = app.libs._.first(albumInfo.info.artists);
 
 		return `${artist.name} - ${albumInfo.info.title} (${albumInfo.info.year})`;

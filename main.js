@@ -16,17 +16,7 @@ class AppManager extends ndapp.Application {
 		return app.path.resolve(__dirname, "userData", ...paths);
 	}
 
-	get db() {
-		return app.localDbManager.db;
-	}
-
-	// async initialize() {
-	// 	await super.initialize();
-	// }
-
-	async run() {
-		await super.run();
-
+	async initialize() {
 		app.config = require("./config");
 
 		try {
@@ -34,14 +24,20 @@ class AppManager extends ndapp.Application {
 		} catch (_) {
 		}
 
-		await app.browserManager.page.navigate(app.config.startUrl);
+		await super.initialize();
+
+		app.fs.removeSync(app.getUserDataPath("temp"));
+		app.fs.removeSync(app.getUserDataPath("music"));
+	}
+
+	async run() {
+		await super.run();
 	}
 }
 
 ndapp({
 	app: new AppManager(),
 	components: [
-		() => new (require("./components/LocalDbManager"))(),
 		() => new (require("./components/BrowserManager"))(),
 		() => new (require("./components/YandexMusicManager"))()
 	],
