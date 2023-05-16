@@ -1,3 +1,5 @@
+const _ = require("lodash");
+
 module.exports = class Frame {
 	constructor(page, frameId, parentFrameId) {
 		this.page = page;
@@ -23,6 +25,6 @@ module.exports = class Frame {
 	}
 
 	get parentFrame() {
-		return app.libs._.first(this.page.getFrames(frame => frame.id === this.parentFrameId));
+		return _.first(this.page.getFrames(frame => frame.id === this.parentFrameId));
 	}
 };

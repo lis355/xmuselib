@@ -1,5 +1,8 @@
 const EventEmitter = require("events");
 
+const _ = require("lodash");
+
+const SiderError = require("./Error");
 const Frame = require("./Frame");
 const Network = require("./Network");
 const Input = require("./Input");
@@ -10,6 +13,8 @@ module.exports = class Page extends EventEmitter {
 
 		this.browser = browser;
 		this.target = target;
+
+		this.initialized = false;
 
 		this.frames = new Map();
 		this.executionContexts = new Map();
@@ -28,7 +33,7 @@ module.exports = class Page extends EventEmitter {
 
 			this.cdp.on("Page.frameNavigated", params => {
 				const frame = this.frames.get(params.frame.id);
-				app.libs._.assign(frame.info, params.frame);
+				_.assign(frame.info, params.frame);
 
 				if (frame === this.mainFrame) {
 					this.emit("navigated");
@@ -67,16 +72,22 @@ module.exports = class Page extends EventEmitter {
 	}
 
 	async initialize() {
-		await this.browser.cdp.rootSession.send("Target.attachToTarget", { targetId: this.target.targetId, flatten: true });
+		try {
+			await this.browser.cdp.rootSession.send("Target.attachToTarget", { targetId: this.target.targetId, flatten: true });
+		} catch (error) {
+			if (this.removedFromBrowser) return;
+
+			throw error;
+		}
 
 		await this.cdp.send("Page.enable");
 
-		if (this.browser.optionEnableRuntime) {
-			await this.cdp.send("Runtime.enable");
-		}
+		if (this.browser.optionEnableRuntime) await this.cdp.send("Runtime.enable");
 
 		await this.network.initialize();
 		await this.input.initialize();
+
+		this.initialized = true;
 	}
 
 	async navigate(url) {
@@ -100,7 +111,7 @@ module.exports = class Page extends EventEmitter {
 					new URL(params.request.url).href === new URL(url).href) {
 					unregisterCallbacks();
 
-					return reject(new Error("Connection error"));
+					return reject(new SiderError("Connection error"));
 				}
 			};
 
@@ -150,12 +161,12 @@ module.exports = class Page extends EventEmitter {
 	}
 
 	async evaluateInFrame({ frame, func, returnByValue = true, args = [] }) {
-		// app.log.info(`evaluateInFrame ${String(func)} ${args.map(String).join()}`);
+		// console.log(`evaluateInFrame ${String(func)} ${args.map(String).join()}`);
 
-		if (!frame) throw new Error("No frame");
+		if (!frame) throw new SiderError("No frame");
 
 		const executionContext = frame.executionContext;
-		if (!executionContext) throw new Error("No executionContext");
+		if (!executionContext) throw new SiderError("No executionContext");
 
 		return this.evaluateInExecutionContext({
 			executionContextId: executionContext.id,
@@ -166,7 +177,7 @@ module.exports = class Page extends EventEmitter {
 	}
 
 	async evaluateInExecutionContext({ executionContextId, func, returnByValue = true, args = [] }) {
-		// app.log.info(`evaluateInExecutionContext ${executionContextId} ${String(func)} ${args.map(String).join()}`);
+		// console.log(`evaluateInExecutionContext ${executionContextId} ${String(func)} ${args.map(String).join()}`);
 
 		const result = await this.cdp.send("Runtime.callFunctionOn", {
 			executionContextId,
@@ -176,9 +187,9 @@ module.exports = class Page extends EventEmitter {
 			awaitPromise: true
 		});
 
-		// app.log.info(app.tools.json.format(result));
+		// console.log(JSON.stringify(result, null, "\t"));
 
-		if (result.result.subtype === "error") throw new Error(result.result.description);
+		if (result.result.subtype === "error") throw new SiderError(result.result.description);
 
 		const value = returnByValue ? result.result.value : result.result;
 

@@ -1,5 +1,7 @@
 const EventEmitter = require("events");
 
+// const _ = require("lodash");
+
 module.exports = class Target extends EventEmitter {
 	constructor(cdpRootSession, targetInfo) {
 		super();
@@ -16,9 +18,9 @@ module.exports = class Target extends EventEmitter {
 	// handleInfoChanged(targetInfo) {
 	// 	// пока не понял почему, но перед закрытием страницы ее type меняется, и логика вся портится
 	// 	// пока не будем обновлять targetInfo.type
-	// 	app.libs._.unset(targetInfo, "type");
+	// 	_.unset(targetInfo, "type");
 
-	// 	app.libs._.assign(this.targetInfo, targetInfo);
+	// 	_.assign(this.targetInfo, targetInfo);
 	// }
 
 	handleAttached(cdpSession) {

@@ -117,7 +117,7 @@ module.exports = class Network extends EventEmitter {
 	async getResponseJson(response) {
 		const body = await this.getResponseBody(response.requestId);
 
-		return app.tools.json.parse(body.toString() || "{}");
+		return JSON.parse(body.toString() || "{}");
 	}
 
 	handleContinueRequestOrResponseError(error) {
@@ -129,21 +129,19 @@ module.exports = class Network extends EventEmitter {
 			// тогда requestId станет уже неактуальным, вот и появляется ошибка
 			// пока что будем игнорировать
 
-			if (app.isDevelop &&
-				!invalidInterceptionIdErrorShowed) {
+			if (!invalidInterceptionIdErrorShowed) {
 				invalidInterceptionIdErrorShowed = true;
 
-				app.log.info(`Invalid InterceptionId error on ${error.data.command.params.requestId}`);
+				console.log(`Invalid InterceptionId error on ${error.data.command.params.requestId}`);
 				// console.log(this.debugPausedRequests[error.data.command.params.requestId]);
 			}
 		} else if (error.message.includes("Session with given id not found")) {
 			// обычно происходит, когда закрывается ВНЕЗАПНО вкладка
 
-			if (app.isDevelop &&
-				!sessionWithGivenIdNotFoundErrorShowed) {
+			if (!sessionWithGivenIdNotFoundErrorShowed) {
 				sessionWithGivenIdNotFoundErrorShowed = true;
 
-				app.log.info(`Session with given id not found error on ${error.data.command.params.requestId}`);
+				console.log(`Session with given id not found error on ${error.data.command.params.requestId}`);
 			}
 		} else {
 			throw error;

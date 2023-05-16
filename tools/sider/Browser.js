@@ -2,8 +2,14 @@ const { spawn } = require("child_process");
 const readline = require("readline");
 const EventEmitter = require("events");
 
-const { CDP } = require("./CDP");
+const _ = require("lodash");
+
+const SiderError = require("./Error");
+const CDP = require("./CDP");
 const Page = require("./Page");
+
+const PAGE_OPEN_AND_CLOSE_REASON_USER = "user";
+const PAGE_OPEN_AND_CLOSE_REASON_PROGRAM = "program";
 
 async function getWSEndpoint(browserProcess) {
 	return new Promise((resolve, reject) => {
@@ -38,7 +44,7 @@ module.exports = class Browser extends EventEmitter {
 	async launch(options) {
 		options.args.set("--remote-debugging-port", 0);
 
-		// app.log.info(`BROWSER ${options.executablePath}${app.os.EOL}${options.args.toArray().join(app.os.EOL)}`);
+		// console.log(`BROWSER ${options.executablePath}${os.EOL}${options.args.toArray().join(os.EOL)}`);
 
 		this.browserProcess = spawn(options.executablePath, options.args.toArray(), {
 			// env: process.env
@@ -79,18 +85,22 @@ module.exports = class Browser extends EventEmitter {
 			switch (target.targetInfo.type) {
 				case "page": {
 					const page = new Page(this, target);
+
+					const targetId = page.target.targetId;
+					if (this.pages.has(targetId)) throw new SiderError("Already has page", targetId);
+					this.pages.set(targetId, page);
+
 					await page.initialize();
 
-					this.pages.set(page.target.targetId, page);
-
-					let reason = "user";
+					let reason = PAGE_OPEN_AND_CLOSE_REASON_USER;
 					if (this.programOpenPage > 0) {
 						this.programOpenPage--;
 
-						reason = "program";
+						reason = PAGE_OPEN_AND_CLOSE_REASON_PROGRAM;
 					}
 
-					this.emit("pageAdded", page, reason);
+					page.addedToBrowser = true;
+					if (!page.removedFromBrowser) this.emit("pageAdded", page, reason);
 
 					break;
 				}
@@ -104,17 +114,19 @@ module.exports = class Browser extends EventEmitter {
 			switch (target.targetInfo.type) {
 				case "page": {
 					const targetId = target.targetId;
+					if (!this.pages.has(targetId)) throw new SiderError("No page", targetId);
 					const page = this.pages.get(targetId);
 					this.pages.delete(targetId);
 
-					let reason = "user";
+					let reason = PAGE_OPEN_AND_CLOSE_REASON_USER;
 					if (this.programClosePage > 0) {
 						this.programClosePage--;
 
-						reason = "program";
+						reason = PAGE_OPEN_AND_CLOSE_REASON_PROGRAM;
 					}
 
-					this.emit("pageRemoved", page, reason);
+					page.removedFromBrowser = true;
+					if (page.addedToBrowser) this.emit("pageRemoved", page, reason);
 
 					break;
 				}
@@ -214,7 +226,7 @@ module.exports = class Browser extends EventEmitter {
 			this.browserProcess = null;
 			this.wsEndpoint = null;
 
-			this.emit("closed", this.programClose ? "program" : "user");
+			this.emit("closed", this.programClose ? PAGE_OPEN_AND_CLOSE_REASON_PROGRAM : PAGE_OPEN_AND_CLOSE_REASON_USER);
 		}
 
 		this.closed = true;
@@ -223,10 +235,10 @@ module.exports = class Browser extends EventEmitter {
 	// OPTIONS
 
 	get optionEnableRuntime() {
-		return app.libs._.get(this.options, "enableRuntime", true);
+		return _.get(this.options, "enableRuntime", true);
 	}
 
 	get optionHandleAuthRequests() {
-		return app.libs._.get(this.options, "handleAuthRequests", true);
+		return _.get(this.options, "handleAuthRequests", true);
 	}
 };

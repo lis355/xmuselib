@@ -1,3 +1,5 @@
+const SiderError = require("./Error");
+
 const PRESS_MOUSE_TIMEOUT_IN_MILLISECONDS = 50;
 const PRESS_MOUSE_TIMEOUT_RANDOM_IN_MILLISECONDS = 10;
 
@@ -9,6 +11,10 @@ const TYPE_TEXT_TIMEOUT_RANDOM_IN_MILLISECONDS = 30;
 
 function getRandomTimeoutInMilliseconds(base, random) {
 	return base + Math.floor((Math.random() - 0.5) * random * 2);
+}
+
+function delay(ms) {
+	return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 module.exports = class Input {
@@ -29,13 +35,13 @@ module.exports = class Input {
 	// }
 
 	async type(text) {
-		if (typeof text !== "string") throw new Error("Type not a string");
+		if (typeof text !== "string") throw new SiderError("Type not a string", text);
 
 		for (let i = 0; i < text.length; i++) {
 			await this.keyPress(text[i]);
 
 			if (i < text.length - 1) {
-				await app.tools.delay(getRandomTimeoutInMilliseconds(TYPE_TEXT_TIMEOUT_IN_MILLISECONDS, TYPE_TEXT_TIMEOUT_RANDOM_IN_MILLISECONDS));
+				await delay(getRandomTimeoutInMilliseconds(TYPE_TEXT_TIMEOUT_IN_MILLISECONDS, TYPE_TEXT_TIMEOUT_RANDOM_IN_MILLISECONDS));
 			}
 		}
 	}
@@ -72,7 +78,7 @@ module.exports = class Input {
 
 	async keyPress(key) {
 		await this.keyDown(key);
-		await app.tools.delay(getRandomTimeoutInMilliseconds(PRESS_KEY_TIMEOUT_IN_MILLISECONDS, PRESS_KEY_TIMEOUT_RANDOM_IN_MILLISECONDS));
+		await delay(getRandomTimeoutInMilliseconds(PRESS_KEY_TIMEOUT_IN_MILLISECONDS, PRESS_KEY_TIMEOUT_RANDOM_IN_MILLISECONDS));
 		await this.keyUp(key);
 	}
 
@@ -106,7 +112,7 @@ module.exports = class Input {
 
 	async mouseClick(x, y, clickCount = 1) {
 		await this.mouseDown(x, y, clickCount);
-		await app.tools.delay(getRandomTimeoutInMilliseconds(PRESS_MOUSE_TIMEOUT_IN_MILLISECONDS, PRESS_MOUSE_TIMEOUT_RANDOM_IN_MILLISECONDS));
+		await delay(getRandomTimeoutInMilliseconds(PRESS_MOUSE_TIMEOUT_IN_MILLISECONDS, PRESS_MOUSE_TIMEOUT_RANDOM_IN_MILLISECONDS));
 		await this.mouseUp(x, y, clickCount);
 	}
 
@@ -123,7 +129,7 @@ module.exports = class Input {
 
 function getKeyEventDataForChar(char) {
 	const definition = KEYS[char];
-	if (!definition) throw new Error(`No info for char ${char}`);
+	if (!definition) throw new SiderError(`No info for char ${char}`, char);
 
 	const description = {
 		modifiers: 0 // NOTE какая то сложная логика в пупитре, пока оставим так
