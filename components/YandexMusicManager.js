@@ -1,22 +1,19 @@
-const { spawn } = require("child_process");
+/* eslint-disable no-debugger */
 
-const filenamifyLibrary = require("filenamify");
 const sharp = require("sharp");
 const NodeID3 = require("node-id3");
 
 const COVER_SIZE = 500;
-const DB = {};
-
-function filenamify(path) {
-	return filenamifyLibrary(path, { maxLength: 1024 });
-}
 
 module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 	async initialize() {
 		await super.initialize();
 
-		DB.albums = DB.albums || {};
-		DB.tracks = DB.tracks || {};
+		app.fs.removeSync(app.getUserDataPath("temp"));
+		app.fs.removeSync(app.getUserDataPath("music"));
+
+		this.albumInfos = {};
+		this.trackInfos = {};
 
 		app.browserManager.events.on("response", this.processResponse.bind(this));
 	}
@@ -24,7 +21,7 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 	async run() {
 		await super.run();
 
-		await app.browserManager.page.navigate(app.path.join("https://music.yandex.ru/album", String(app.config.yandexAlbumId)));
+		await app.browserManager.page.navigate(app.tools.urljoin("https://music.yandex.ru/album", String(app.config.yandexAlbumId)));
 	}
 
 	async processResponse(params) {
@@ -44,9 +41,7 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 			contentTypeHeader.value.includes("json")) {
 			const json = await app.browserManager.page.network.getResponseJson(params);
 
-			for (const albumInfo of json) {
-				this.createAlbumInfo(albumInfo);
-			}
+			for (const albumInfo of json) this.createAlbumInfo(albumInfo);
 		} else if (requestUrl.origin.includes("music.yandex.ru") &&
 			requestUrl.pathname.endsWith("handlers/tracks") &&
 			contentTypeHeader &&
@@ -62,7 +57,7 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 			const body = await app.browserManager.page.network.getResponseBody(params.requestId);
 
 			const trackId = requestUrl.searchParams.get("track-id");
-			let trackInfo = DB.tracks[trackId];
+			let trackInfo = this.trackInfos[trackId];
 			if (!trackInfo) {
 				const responseResult = await app.browserManager.page.evaluateInFrame({
 					frame: app.browserManager.page.mainFrame,
@@ -72,19 +67,17 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 
 				trackInfo = responseResult.tracks ? app.libs._.first(responseResult.tracks) : responseResult.track;
 
-				this.createTrackInfo(trackInfo);
+				trackInfo = this.createTrackInfo(trackInfo);
 			}
-
-			if (!trackInfo) throw new Error("No trackInfo");
 
 			if (!trackInfo.downloaded) {
 				app.fs.outputFileSync(trackInfo.filePath, body);
 
 				trackInfo.downloaded = true;
 
-				this.logToConsoleAndToBrowserConsole(`[${this.getTrackInfoText(trackId)}] downloaded`);
+				this.logToConsoleAndToBrowserConsole(`Трек [${this.getTrackInfoText(trackId)}] скачан`);
 			} else {
-				this.logToConsoleAndToBrowserConsole(`[${this.getTrackInfoText(trackId)}] already downloaded`);
+				this.logToConsoleAndToBrowserConsole(`Трек [${this.getTrackInfoText(trackId)}] уже скачан`);
 			}
 
 			// https://music.yandex.ru/handlers/track.jsx?track=108091000&lang=ru&external-domain=music.yandex.ru
@@ -98,7 +91,7 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 			contentTypeHeader &&
 			contentTypeHeader.value.includes("image")) {
 			const albumId = Number(requestUrl.href.split("/")[5].split(".")[2].split("-")[0]);
-			const albumInfo = DB.albums[albumId];
+			const albumInfo = this.albumInfos[albumId];
 			if (!albumInfo) throw new Error("No albumInfo");
 
 			if (!albumInfo.cover.downloaded) {
@@ -113,9 +106,9 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 
 				albumInfo.cover.downloaded = true;
 
-				this.logToConsoleAndToBrowserConsole(`[${this.getCoverInfoText(albumId)}] downloaded`);
+				this.logToConsoleAndToBrowserConsole(`Обложка альбома [${this.getCoverInfoText(albumId)}] скачана`);
 			} else {
-				this.logToConsoleAndToBrowserConsole(`[${this.getCoverInfoText(albumId)}] already downloaded`);
+				this.logToConsoleAndToBrowserConsole(`Обложка альбома [${this.getCoverInfoText(albumId)}] уже скачана`);
 			}
 
 			setImmediate(async () => this.processAlbum(albumId));
@@ -124,13 +117,17 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 
 	createAlbumInfo(albumInfo) {
 		const albumId = albumInfo.id;
-		if (!DB.albums[albumId]) {
-			const artist = app.libs._.first(albumInfo.artists);
+		if (!this.albumInfos[albumId]) {
+			// TODO correct artist
+			if (albumInfo.artists.length > 1) debugger;
 
-			DB.albums[albumId] = {
-				createdAt: app.time.valueOf(),
+			albumInfo.artist = app.tools.nameCase(app.libs._.first(albumInfo.artists).name);
+			albumInfo.name = app.tools.nameCase(albumInfo.title);
+			albumInfo.genre = app.tools.nameCase(albumInfo.genre);
+
+			this.albumInfos[albumId] = {
 				info: albumInfo,
-				albumPath: app.getUserDataPath("music", filenamify(artist.name), filenamify(albumInfo.title)),
+				albumPath: app.getUserDataPath("music", app.tools.filenamify(albumInfo.artist), app.tools.filenamify(albumInfo.name)),
 				cover: {
 					filePath: app.getUserDataPath("temp", "covers", `${albumId}.jpg`),
 					downloaded: false
@@ -138,97 +135,109 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 				processed: false
 			};
 
-			this.logToConsoleAndToBrowserConsole(`Album [${this.getAlbumInfoText(albumId)}] info created`);
+			this.logToConsoleAndToBrowserConsole(`Информация для альбома [${this.getAlbumInfoText(albumId)}] создана`);
 		}
+
+		return this.albumInfos[albumId];
 	}
 
 	createTrackInfo(trackInfo) {
 		const trackId = trackInfo.id;
-		if (!DB.tracks[trackId]) {
+		if (!this.trackInfos[trackId]) {
+			// TODO correct artist
+			if (trackInfo.artists.length > 1) debugger;
+
+			trackInfo.name = app.tools.nameCase(trackInfo.title);
+
 			const filePath = app.getUserDataPath("temp", "tracks", `${trackId}.mp3`);
 
-			DB.tracks[trackId] = {
-				createdAt: app.time.valueOf(),
+			this.trackInfos[trackId] = {
 				info: trackInfo,
 				filePath,
-				downloaded: app.fs.existsSync(filePath)
+				downloaded: app.fs.existsSync(filePath),
+				processed: false
 			};
+
+			this.logToConsoleAndToBrowserConsole(`Информация для трека [${this.getTrackInfoText(trackId)}] создана`);
 		}
 
-		this.logToConsoleAndToBrowserConsole(`Track [${this.getTrackInfoText(trackId)}] info created`);
+		return this.trackInfos[trackId];
 	}
 
 	async processAlbum(albumId, options) {
-		const albumInfo = DB.albums[albumId];
+		const albumInfo = this.albumInfos[albumId];
 		if (!albumInfo) throw new Error("No albumInfo");
 
-		if (albumInfo.processed && !app.libs._.get(options, "force", false)) return;
+		if (albumInfo.processed &&
+			!app.libs._.get(options, "force", false)) return;
 
-		const albumDownloadedTrackInfos = Object.values(DB.tracks)
+		const albumDownloadedTrackInfos = Object.values(this.trackInfos)
 			.filter(trackInfo => trackInfo.downloaded)
 			.filter(trackInfo => trackInfo.info.albums.find(albumInfo => albumInfo.id === albumId));
 
 		if (albumDownloadedTrackInfos.length !== albumInfo.info.trackCount) return;
 
-		if (!albumInfo.cover.downloaded) return;
+		if (!albumInfo.cover.downloaded) {
+			this.logToConsoleAndToBrowserConsole(`Не скачана обложка для альбома [${this.getAlbumInfoText(albumId)}]`);
 
-		for (const trackInfo of albumDownloadedTrackInfos) {
-			await this.outputTrackWithTagsAndCover(albumInfo, trackInfo);
+			return;
 		}
 
-		app.fs.copyFileSync(albumInfo.cover.filePath, app.path.join(albumInfo.albumPath, "cover.jpg"));
+		app.fs.ensureDirSync(albumInfo.albumPath);
+
+		albumInfo.cover.outFilePath = app.path.posix.join(albumInfo.albumPath, "cover.jpg");
+		app.fs.copyFileSync(albumInfo.cover.filePath, albumInfo.cover.outFilePath);
+
+		for (const trackInfo of albumDownloadedTrackInfos) await this.outputTrackWithTagsAndCover(albumInfo, trackInfo);
 
 		albumInfo.processed = true;
 
-		spawn("explorer.exe", [albumInfo.albumPath]);
+		app.uploadManager.uploadAlbum(albumInfo, albumDownloadedTrackInfos);
 	}
 
 	async outputTrackWithTagsAndCover(albumInfo, trackInfo) {
-		const artist = app.libs._.first(albumInfo.info.artists);
-		const albumId = albumInfo.info.id;
-		const trackAlbumInfo = trackInfo.info.albums.find(albumInfo => albumInfo.id === albumId);
-		const trackPosition = trackAlbumInfo.trackPosition.index;
+		const trackAlbumInfo = trackInfo.info.albums.find(info => info.id === albumInfo.info.id);
 
 		const metadata = {
-			artist: app.tools.nameCase(artist.name),
-			album: app.tools.nameCase(albumInfo.info.title),
-			trackNumber: app.libs._.padStart(String(trackPosition), 2, "0"),
-			title: app.tools.nameCase(trackInfo.info.title),
-			genre: app.tools.nameCase(albumInfo.info.genre),
-			year: albumInfo.info.year
+			artist: albumInfo.info.artist,
+			album: albumInfo.info.name,
+			trackNumber: app.libs._.padStart(String(trackAlbumInfo.trackPosition.index), 2, "0"),
+			title: trackInfo.info.name,
+			genre: albumInfo.info.genre,
+			year: albumInfo.info.year,
+			image: albumInfo.cover.filePath
 		};
 
-		const fileName = filenamify(`${metadata.trackNumber}. ${metadata.artist} - ${metadata.album} (${metadata.year}) - ${metadata.title}.mp3`);
-		const filePath = app.path.join(albumInfo.albumPath, fileName);
+		trackInfo.outFileName = app.tools.filenamify(`${metadata.trackNumber}. ${metadata.artist} - ${metadata.album} (${metadata.year}) - ${metadata.title}.mp3`);
+		trackInfo.outFilePath = app.path.posix.join(albumInfo.albumPath, trackInfo.outFileName);
 
-		app.fs.ensureDirSync(albumInfo.albumPath);
-		app.fs.copyFileSync(trackInfo.filePath, filePath);
+		app.fs.copyFileSync(trackInfo.filePath, trackInfo.outFilePath);
 
-		NodeID3.write({
-			...metadata,
-			image: albumInfo.cover.filePath
-		}, filePath);
+		NodeID3.write(metadata, trackInfo.outFilePath);
+
+		trackInfo.processed = true;
 	}
 
 	getTrackInfoText(trackId) {
-		const trackInfo = DB.tracks[trackId];
-		const artist = app.libs._.first(trackInfo.info.artists);
+		const trackInfo = this.trackInfos[trackId];
 
-		return `${artist.name} - ${trackInfo.info.title}`;
+		// TODO correct albums
+		if (trackInfo.info.albums > 1) debugger;
+		const albumInfo = this.albumInfos[app.libs._.first(trackInfo.info.albums).id];
+
+		return `${albumInfo.info.artist} - ${trackInfo.info.title}`;
 	}
 
 	getAlbumInfoText(albumId) {
-		const albumInfo = DB.albums[albumId];
-		const artist = app.libs._.first(albumInfo.info.artists);
+		const albumInfo = this.albumInfos[albumId];
 
-		return `${artist.name} - ${albumInfo.info.title} (${albumInfo.info.year})`;
+		return `${albumInfo.info.artist} - ${albumInfo.info.name} (${albumInfo.info.year})`;
 	}
 
 	getCoverInfoText(albumId) {
-		const albumInfo = DB.albums[albumId];
-		const artist = app.libs._.first(albumInfo.info.artists);
+		const albumInfo = this.albumInfos[albumId];
 
-		return `${artist.name} - ${albumInfo.info.title} (${albumInfo.info.year})`;
+		return `${albumInfo.info.artist} - ${albumInfo.info.name} (${albumInfo.info.year})`;
 	}
 
 	logToConsoleAndToBrowserConsole(log) {

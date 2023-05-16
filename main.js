@@ -1,4 +1,5 @@
 const ndapp = require("ndapp");
+const filenamifyLibrary = require("filenamify");
 
 class AppManager extends ndapp.Application {
 	constructor() {
@@ -25,9 +26,6 @@ class AppManager extends ndapp.Application {
 		}
 
 		await super.initialize();
-
-		app.fs.removeSync(app.getUserDataPath("temp"));
-		app.fs.removeSync(app.getUserDataPath("music"));
 	}
 
 	async run() {
@@ -39,9 +37,14 @@ ndapp({
 	app: new AppManager(),
 	components: [
 		() => new (require("./components/BrowserManager"))(),
+		() => new (require("./components/UploadManager"))(),
 		() => new (require("./components/YandexMusicManager"))()
 	],
 	tools: {
-		nameCase: require("./tools/nameCase")
+		urljoin: require("url-join"),
+		nameCase: require("./tools/nameCase"),
+		filenamify: function (path) {
+			return filenamifyLibrary(path, { maxLength: 1024 });
+		}
 	}
 });
