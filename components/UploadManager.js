@@ -2,12 +2,9 @@ const { spawn } = require("child_process");
 
 const ftp = require("basic-ftp");
 
-const UPLOADER_TYPES = new ndapp.enum({
-	DISK: "fs",
-	FTP_NET: "ftp"
-});
+const LibraryManager = require("./LibraryManager");
 
-const ARTISTS_SUBDIRECTORY = "ARTISTS";
+const { UPLOADER_TYPES } = app.enums;
 
 class Uploader {
 	constructor(info) {
@@ -24,7 +21,7 @@ class Uploader {
 
 class FsDiskUploader extends Uploader {
 	async uploadAlbum(albumInfo, trackInfos) {
-		const albumDestinationFolder = app.path.posix.join(this.info.root, ARTISTS_SUBDIRECTORY, app.tools.filenamify(albumInfo.info.artist), app.tools.filenamify(albumInfo.info.name));
+		const albumDestinationFolder = app.path.posix.join(this.info.root, LibraryManager.ARTISTS_SUBDIRECTORY, app.tools.filenamify(albumInfo.info.artist), app.tools.filenamify(albumInfo.info.name));
 
 		app.log.info(`Загрузка альбома в локальную библиотеку на диске ${albumDestinationFolder}`);
 
@@ -66,7 +63,7 @@ class FtpNetUploader extends Uploader {
 			port: this.info.port
 		});
 
-		const albumDestinationFolder = app.path.posix.join(this.info.root, ARTISTS_SUBDIRECTORY, app.tools.filenamify(albumInfo.info.artist), app.tools.filenamify(albumInfo.info.name));
+		const albumDestinationFolder = app.path.posix.join(this.info.root, LibraryManager.ARTISTS_SUBDIRECTORY, app.tools.filenamify(albumInfo.info.artist), app.tools.filenamify(albumInfo.info.name));
 
 		app.log.info(`Загрузка альбома на FTP в ${albumDestinationFolder}`);
 
@@ -111,16 +108,21 @@ module.exports = class UploadManager extends ndapp.ApplicationComponent {
 	}
 
 	async createUploaders() {
-		this.uploaders = app.config.upload.map(uploaderInfo => {
-			switch (uploaderInfo.type) {
-				case UPLOADER_TYPES.DISK: return new FsDiskUploader(uploaderInfo);
-				case UPLOADER_TYPES.FTP_NET: return new FtpNetUploader(uploaderInfo);
-				default: throw new Error(uploaderInfo.type);
+		this.uploaders = app.config.upload.mapToObject(uploaderInfo => {
+			const uploaderInfoType = uploaderInfo.type;
+			let uploader;
+
+			switch (uploaderInfoType) {
+				case UPLOADER_TYPES.DISK: uploader = new FsDiskUploader(uploaderInfo); break;
+				case UPLOADER_TYPES.FTP_NET: uploader = new FtpNetUploader(uploaderInfo); break;
+				default: throw new Error(uploaderInfoType);
 			}
+
+			return { key: uploaderInfoType, value: uploader };
 		});
 	}
 
 	async uploadAlbum(albumInfo, trackInfos) {
-		for (const uploader of this.uploaders) await uploader.uploadAlbum(albumInfo, trackInfos);
+		for (const uploader of Object.values(this.uploaders)) await uploader.uploadAlbum(albumInfo, trackInfos);
 	}
 };

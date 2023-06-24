@@ -3,9 +3,9 @@
 const sharp = require("sharp");
 const NodeID3 = require("node-id3");
 
-const COVER_SIZE = 500;
+const COVER_MAX_SIZE = 500;
 
-module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
+module.exports = class YandexMusicBrowserManager extends ndapp.ApplicationComponent {
 	async initialize() {
 		await super.initialize();
 
@@ -18,11 +18,9 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 		app.browserManager.events.on("response", this.processResponse.bind(this));
 	}
 
-	async run() {
-		await super.run();
-
-		await app.browserManager.page.navigate(app.tools.urljoin("https://music.yandex.ru/album", String(app.config.yandexAlbumId)));
-	}
+	// async run() {
+	// 	await super.run();
+	// }
 
 	async processResponse(params) {
 		const requestUrl = new URL(params.request.url);
@@ -97,12 +95,12 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 			if (!albumInfo.cover.downloaded) {
 				const body = await app.browserManager.page.network.getResponseBody(params.requestId);
 
-				const pngImage = await sharp(body)
-					.resize(COVER_SIZE, COVER_SIZE)
+				const image = await sharp(body)
+					.resize(COVER_MAX_SIZE, COVER_MAX_SIZE)
 					.jpeg({ quality: 100 })
 					.toBuffer();
 
-				app.fs.outputFileSync(albumInfo.cover.filePath, pngImage);
+				app.fs.outputFileSync(albumInfo.cover.filePath, image);
 
 				albumInfo.cover.downloaded = true;
 
@@ -144,10 +142,11 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 	createTrackInfo(trackInfo) {
 		const trackId = trackInfo.id;
 		if (!this.trackInfos[trackId]) {
-			// TODO correct artist
-			if (trackInfo.artists.length > 1) debugger;
-
 			trackInfo.name = app.tools.nameCase(trackInfo.title);
+
+			if (trackInfo.artists.length > 1) trackInfo.name += ` (feat. ${trackInfo.artists.slice(1).map(artistInfo => app.tools.nameCase(artistInfo.name))})`;
+
+			if (trackInfo.version) trackInfo.name += ` (${app.tools.nameCase(trackInfo.version)})`;
 
 			const filePath = app.getUserDataPath("temp", "tracks", `${trackId}.mp3`);
 
@@ -198,7 +197,7 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 	async outputTrackWithTagsAndCover(albumInfo, trackInfo) {
 		const trackAlbumInfo = trackInfo.info.albums.find(info => info.id === albumInfo.info.id);
 
-		const metadata = {
+		const tags = {
 			artist: albumInfo.info.artist,
 			album: albumInfo.info.name,
 			trackNumber: app.libs._.padStart(String(trackAlbumInfo.trackPosition.index), 2, "0"),
@@ -208,12 +207,12 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 			image: albumInfo.cover.filePath
 		};
 
-		trackInfo.outFileName = app.tools.filenamify(`${metadata.trackNumber}. ${metadata.artist} - ${metadata.album} (${metadata.year}) - ${metadata.title}.mp3`);
+		trackInfo.outFileName = app.tools.filenamify(`${tags.trackNumber}. ${tags.artist} - ${tags.album} (${tags.year}) - ${tags.title}.mp3`);
 		trackInfo.outFilePath = app.path.posix.join(albumInfo.albumPath, trackInfo.outFileName);
 
 		app.fs.copyFileSync(trackInfo.filePath, trackInfo.outFilePath);
 
-		NodeID3.write(metadata, trackInfo.outFilePath);
+		NodeID3.write(tags, trackInfo.outFilePath);
 
 		trackInfo.processed = true;
 	}
@@ -225,7 +224,7 @@ module.exports = class YandexMusicManager extends ndapp.ApplicationComponent {
 		if (trackInfo.info.albums > 1) debugger;
 		const albumInfo = this.albumInfos[app.libs._.first(trackInfo.info.albums).id];
 
-		return `${albumInfo.info.artist} - ${trackInfo.info.title}`;
+		return `${albumInfo && albumInfo.info.artist} - ${trackInfo.info.name}`;
 	}
 
 	getAlbumInfoText(albumId) {

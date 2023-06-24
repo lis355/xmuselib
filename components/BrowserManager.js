@@ -8,7 +8,9 @@ module.exports = class BrowserManager extends ndapp.ApplicationComponent {
 		await super.initialize();
 
 		this.events = new EventEmitter();
+	}
 
+	async openBrowser() {
 		const args = new CLIArguments();
 
 		args.parseArrayArguments([
