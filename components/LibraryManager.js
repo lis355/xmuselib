@@ -13,16 +13,24 @@ class LibraryManager extends ndapp.ApplicationComponent {
 	}
 
 	async processLibrary(root) {
-		const artistsLibraryFolder = app.path.posix.join(root, LibraryManager.ARTISTS_SUBDIRECTORY);
+		let processedLibraryCache = new Set();
+		try {
+			processedLibraryCache = new Set(app.tools.json.load(app.getUserDataPath("processedLibraryCache.json")));
+		} catch (_) {
+		}
+
+		const artistsLibraryFolder = app.path.posix.join(root, ARTISTS_SUBDIRECTORY);
 
 		for (const artistFileInfo of app.tools.getFileInfosFromDirectory(artistsLibraryFolder)) {
 			// folders with artists
 			const artist = artistFileInfo.fileName;
 
+			if (processedLibraryCache.has(artist)) continue;
+
 			if (!artistFileInfo.isDirectory) {
 				app.log.info(`Not a directory ${artistFileInfo.filePath}`);
 
-				return;
+				continue;
 			}
 
 			for (const albumFileInfo of app.tools.getFileInfosFromDirectory(artistFileInfo.filePath)) {
@@ -32,7 +40,7 @@ class LibraryManager extends ndapp.ApplicationComponent {
 				if (!albumFileInfo.isDirectory) {
 					app.log.info(`Not a directory ${albumFileInfo.filePath}`);
 
-					return;
+					continue;
 				}
 
 				// folders with tracks & cover
@@ -87,133 +95,136 @@ class LibraryManager extends ndapp.ApplicationComponent {
 				if (!coverFilePath) {
 					app.log.info(`No cover ${albumFileInfo.filePath}`);
 
-					return;
+					continue;
 				}
 
-				albumFiles
-					.filter(albumItemFileInfo => albumItemFileInfo.fileName.toLowerCase() !== "cover.jpg")
-					.forEach(albumItemFileInfo => {
-						if (app.path.extname(albumItemFileInfo.fileName).toLowerCase() !== EXTENSION_MP3) {
-							app.log.info(`Not a ${EXTENSION_MP3} file ${albumItemFileInfo.filePath}`);
+				for (const albumItemFileInfo of albumFiles) {
+					if (albumItemFileInfo.fileName.toLowerCase() === "cover.jpg") continue;
 
-							return;
-						}
+					if (app.path.extname(albumItemFileInfo.fileName).toLowerCase() !== EXTENSION_MP3) {
+						app.log.info(`Not a ${EXTENSION_MP3} file ${albumItemFileInfo.filePath}`);
 
-						const tags = NodeID3.read(albumItemFileInfo.filePath);
+						continue;
+					}
 
-						let tagsError;
-						let correctArtist;
-						let correctAlbum;
-						let correctTrackNumber;
-						let correctTitle;
-						let correctYear;
-						let correctFileName;
+					const tags = NodeID3.read(albumItemFileInfo.filePath);
 
-						tags.artist = app.tools.nameCase(tags.artist);
-						tags.album = app.tools.nameCase(tags.album);
-						tags.title = app.tools.nameCase(tags.title);
-						if (tags.genre) tags.genre = app.tools.nameCase(tags.genre);
+					let tagsError;
+					let correctArtist;
+					let correctAlbum;
+					let correctTrackNumber;
+					let correctTitle;
+					let correctYear;
+					let correctFileName;
 
-						if (app.tools.filenamify(app.tools.nameCase(tags.artist)) !== artist) {
+					tags.artist = app.tools.nameCase(tags.artist);
+					tags.album = app.tools.nameCase(tags.album);
+					tags.title = app.tools.nameCase(tags.title);
+					if (tags.genre) tags.genre = app.tools.nameCase(tags.genre);
+
+					if (app.tools.filenamify(app.tools.nameCase(tags.artist)) !== artist) {
+						tagsError = true;
+
+						app.log.info(`Bad artist ${albumItemFileInfo.filePath}`);
+					} else {
+						correctArtist = true;
+					}
+
+					if (app.tools.filenamify(tags.album) !== album) {
+						tagsError = true;
+
+						app.log.info(`Bad album ${albumItemFileInfo.filePath}`);
+					} else {
+						correctAlbum = true;
+					}
+
+					if (!Number.isInteger(parseFloat(tags.trackNumber))) {
+						tagsError = true;
+
+						app.log.info(`Bad trackNumber ${albumItemFileInfo.filePath}`);
+					} else {
+						correctTrackNumber = true;
+
+						tags.trackNumber = app.libs._.padStart(String(tags.trackNumber), 2, "0");
+					}
+
+					if (!tags.title) {
+						tagsError = true;
+
+						app.log.info(`Bad title ${albumItemFileInfo.filePath}`);
+					} else {
+						correctTitle = true;
+					}
+
+					// if (!tags.genre) {
+					// 	tagsError = true;
+
+					// 	app.log.info(`Bad genre ${albumItemFileInfo.filePath}`);
+					// }
+
+					if (tags.year !== undefined &&
+						(!Number.isInteger(parseFloat(tags.year)) ||
+							!(/\d\d\d\d/.test(tags.year)))) {
+						tagsError = true;
+
+						app.log.info(`Bad year ${albumItemFileInfo.filePath}`);
+					} else {
+						correctYear = true;
+					}
+
+					if (!tags.image) {
+						tagsError = true;
+
+						app.log.info(`Bad image ${albumItemFileInfo.filePath}`);
+					} else {
+						const trackCoverHash = hasha(tags.image.imageBuffer, { algorithm: "md5" });
+						if (trackCoverHash !== coverHash) {
 							tagsError = true;
 
-							app.log.info(`Bad artist ${albumItemFileInfo.filePath}`);
-						} else {
-							correctArtist = true;
+							// app.log.info(`Different image ${albumItemFileInfo.filePath}`);
 						}
+					}
 
-						if (app.tools.filenamify(tags.album) !== album) {
-							tagsError = true;
+					continue;
 
-							app.log.info(`Bad album ${albumItemFileInfo.filePath}`);
-						} else {
-							correctAlbum = true;
-						}
+					let trackFileName = `${tags.trackNumber}. ${tags.artist} - ${tags.album}`;
+					if (tags.year !== undefined) trackFileName += ` (${tags.year})`;
+					trackFileName += ` - ${tags.title}.mp3`;
+					trackFileName = app.tools.filenamify(trackFileName);
 
-						if (!Number.isInteger(parseFloat(tags.trackNumber))) {
-							tagsError = true;
+					if (albumItemFileInfo.fileName !== trackFileName) {
+						tagsError = true;
 
-							app.log.info(`Bad trackNumber ${albumItemFileInfo.filePath}`);
-						} else {
-							correctTrackNumber = true;
+						// app.log.info(`Bad file name ${albumItemFileInfo.filePath}`);
+					} else {
+						correctFileName = true;
+					}
 
-							tags.trackNumber = app.libs._.padStart(String(tags.trackNumber), 2, "0");
-						}
+					const tagNames = new Set(Object.keys(tags));
 
-						if (!tags.title) {
-							tagsError = true;
+					tagNames.delete("raw");
+					tagNames.delete("artist");
+					tagNames.delete("album");
+					tagNames.delete("trackNumber");
+					tagNames.delete("title");
+					tagNames.delete("genre");
+					tagNames.delete("year");
+					tagNames.delete("image");
 
-							app.log.info(`Bad title ${albumItemFileInfo.filePath}`);
-						} else {
-							correctTitle = true;
-						}
+					const specialTags = {};
+					if (tagNames.has("unsynchronisedLyrics")) {
+						specialTags.unsynchronisedLyrics = tags.unsynchronisedLyrics;
+						tagNames.delete("unsynchronisedLyrics");
+					}
 
-						// if (!tags.genre) {
-						// 	tagsError = true;
+					if (tagNames.size > 0) {
+						tagsError = true;
 
-						// 	app.log.info(`Bad genre ${albumItemFileInfo.filePath}`);
-						// }
+						app.log.info(`Other tags ${Array.from(tagNames).join(", ")} in ${albumItemFileInfo.filePath}`);
+					}
 
-						if (tags.year !== undefined &&
-							!Number.isInteger(parseFloat(tags.year))) {
-							tagsError = true;
-
-							app.log.info(`Bad year ${albumItemFileInfo.filePath}`);
-						} else {
-							correctYear = true;
-						}
-
-						if (!tags.image) {
-							tagsError = true;
-
-							app.log.info(`Bad image ${albumItemFileInfo.filePath}`);
-						} else {
-							const trackCoverHash = hasha(tags.image.imageBuffer, { algorithm: "md5" });
-							if (trackCoverHash !== coverHash) {
-								tagsError = true;
-
-								app.log.info(`Different image ${albumItemFileInfo.filePath}`);
-							}
-						}
-
-						let trackFileName = `${tags.trackNumber}. ${tags.artist} - ${tags.album}`;
-						if (tags.year !== undefined) trackFileName += ` (${tags.year})`;
-						trackFileName += ` - ${tags.title}.mp3`;
-						trackFileName = app.tools.filenamify(trackFileName);
-
-						if (albumItemFileInfo.fileName !== trackFileName) {
-							tagsError = true;
-
-							app.log.info(`Bad file name ${albumItemFileInfo.filePath}`);
-						} else {
-							correctFileName = true;
-						}
-
-						const tagNames = new Set(Object.keys(tags));
-
-						tagNames.delete("raw");
-						tagNames.delete("artist");
-						tagNames.delete("album");
-						tagNames.delete("trackNumber");
-						tagNames.delete("title");
-						tagNames.delete("genre");
-						tagNames.delete("year");
-						tagNames.delete("image");
-
-						const specialTags = {};
-						if (tagNames.has("unsynchronisedLyrics")) {
-							specialTags.unsynchronisedLyrics = tags.unsynchronisedLyrics;
-							tagNames.delete("unsynchronisedLyrics");
-						}
-
-						if (tagNames.size > 0) {
-							tagsError = true;
-
-							app.log.info(`Other tags ${Array.from(tagNames).join(", ")} in ${albumItemFileInfo.filePath}`);
-						}
-
-						if (tagsError &&
-							correctArtist &&
+					if (tagsError) {
+						if (correctArtist &&
 							correctAlbum &&
 							correctTrackNumber &&
 							correctTitle &&
@@ -241,9 +252,15 @@ class LibraryManager extends ndapp.ApplicationComponent {
 							}
 
 							NodeID3.write(correctTags, trackFilePath);
+						} else {
+							app.log.info(`Bad file ${albumItemFileInfo.filePath}`);
 						}
-					});
+					}
+				}
 			}
+
+			processedLibraryCache.add(artist);
+			app.tools.json.save(app.getUserDataPath("processedLibraryCache.json"), Array.from(processedLibraryCache));
 		}
 	}
 };
