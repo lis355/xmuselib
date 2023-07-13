@@ -20,9 +20,10 @@ module.exports = function nameCase(s) {
 
 	for (let i = 0; i < words.length; i++) {
 		const word = words[i];
-		if (word.length >= 2 &&
+		if ((word.length >= 2 &&
 			isInUpperCase(word[0]) &&
-			isInUpperCase(word[1])) {
+			isInUpperCase(word[1])) ||
+			(word[0] === "(")) {
 			// notning
 		} else {
 			words[i] = !ACRONYMS.includes(word) &&
