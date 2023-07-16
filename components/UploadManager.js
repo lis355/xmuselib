@@ -21,7 +21,10 @@ class Uploader {
 
 class FsDiskUploader extends Uploader {
 	async uploadAlbum(albumInfo, trackInfos) {
-		const albumDestinationFolder = app.path.posix.join(this.info.root, LibraryManager.ARTISTS_SUBDIRECTORY, app.tools.filenamify(albumInfo.info.artist), app.tools.filenamify(albumInfo.info.name));
+		const albumDestinationFolder =
+			albumInfo.compilation
+				? app.path.posix.join(this.info.root, LibraryManager.LIBRARY_SUBDIRECTORIES.COMPILATIONS, app.tools.filenamify(albumInfo.info.name))
+				: app.path.posix.join(this.info.root, LibraryManager.LIBRARY_SUBDIRECTORIES.ARTISTS, app.tools.filenamify(albumInfo.info.artist), app.tools.filenamify(albumInfo.info.name));
 
 		app.log.info(`Загрузка альбома в локальную библиотеку на диске ${albumDestinationFolder}`);
 
@@ -63,7 +66,10 @@ class FtpNetUploader extends Uploader {
 			port: this.info.port
 		});
 
-		const albumDestinationFolder = app.path.posix.join(this.info.root, LibraryManager.ARTISTS_SUBDIRECTORY, app.tools.filenamify(albumInfo.info.artist), app.tools.filenamify(albumInfo.info.name));
+		const albumDestinationFolder =
+			albumInfo.compilation
+				? app.path.posix.join(this.info.root, LibraryManager.LIBRARY_SUBDIRECTORIES.COMPILATIONS, app.tools.filenamify(albumInfo.info.name))
+				: app.path.posix.join(this.info.root, LibraryManager.LIBRARY_SUBDIRECTORIES.ARTISTS, app.tools.filenamify(albumInfo.info.artist), app.tools.filenamify(albumInfo.info.name));
 
 		app.log.info(`Загрузка альбома на FTP в ${albumDestinationFolder}`);
 

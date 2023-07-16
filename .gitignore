@@ -2,4 +2,4 @@ yarn.lock
 node_modules/
 userData/
 
-config.local.js
+config.js

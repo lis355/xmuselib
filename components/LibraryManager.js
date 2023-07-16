@@ -2,269 +2,419 @@ const hasha = require("hasha");
 const sharp = require("sharp");
 const NodeID3 = require("node-id3");
 
-const ARTISTS_SUBDIRECTORY = "ARTISTS";
+const LIBRARY_SUBDIRECTORIES = new ndapp.enum([
+	"ARTISTS",
+	"COMPILATIONS",
+	"OST",
+	"RINGTONES"
+]);
+
+function hash(buffer) {
+	return hasha(buffer, { algorithm: "md5" });
+}
+
+function readTags(trackFilePath) {
+	return NodeID3.read(trackFilePath, { noRaw: true });
+}
+
+function writeTags(tags, trackFilePath) {
+	NodeID3.write(tags, trackFilePath);
+}
 
 const EXTENSION_MP3 = ".mp3";
+const COVER_JPEG_FILENAME = "cover.jpg";
+const COVER_PNG_FILENAME = "cover.png";
 const COVER_MAX_SIZE = 500;
+
+class LibraryCache {
+	constructor(rootPath) {
+		this.dbPath = app.path.posix.join(rootPath, ".cache");
+
+		this.save = app.libs._.throttle(this.save.bind(this), 250, { leading: false });
+
+		this.set = new Set();
+
+		try {
+			this.set = new Set(app.tools.json.load(this.dbPath));
+		} catch (_) {
+		}
+	}
+
+	has(hash) {
+		return this.set.has(hash);
+	}
+
+	cache(hash) {
+		this.set.add(hash);
+
+		this.save();
+	}
+
+	save() {
+		app.tools.json.save(this.dbPath, Array.from(this.set));
+	}
+}
+
+class LibraryProcessor {
+	constructor(rootPath) {
+		this.rootPath = rootPath;
+
+		this.cache = new LibraryCache(rootPath);
+
+		try {
+			this.settings = app.tools.json.load(app.path.posix.join(this.rootPath, ".settings"));
+		} catch (_) {
+			this.settings = {};
+		}
+
+		this.nameCaseOptions = { acronyms: this.settings.acronyms };
+	}
+
+	async process() {
+		await this.processArtistsLibrary();
+
+		await this.processCompilationsAndOSTLibrary();
+	}
+
+	nameCase(name) {
+		return app.tools.nameCase(name, this.nameCaseOptions);
+	}
+
+	async processCoverAndGetCoverFilePath(albumFiles) {
+		let coverFilePath;
+		// let coverHash;
+
+		const coverPngFileInfo = albumFiles.find(fileInfo => fileInfo.fileName.toLowerCase() === COVER_PNG_FILENAME);
+		if (coverPngFileInfo) {
+			const coverPngImage = await sharp(app.fs.readFileSync(coverPngFileInfo.filePath));
+			const coverPngImageMetadata = await coverPngImage.metadata();
+
+			const size = Math.min(COVER_MAX_SIZE, coverPngImageMetadata.width, coverPngImageMetadata.height);
+
+			const imageBuffer = await coverPngImage
+				.resize(size, size)
+				.jpeg({ quality: 100 })
+				.toBuffer();
+
+			app.fs.outputFileSync(app.path.posix.join(coverPngFileInfo.fileDirectory, COVER_JPEG_FILENAME), imageBuffer);
+			app.fs.removeSync(coverPngFileInfo.filePath);
+		}
+
+		const coverJpgFileInfo = albumFiles.find(fileInfo => fileInfo.fileName.toLowerCase() === COVER_JPEG_FILENAME);
+		if (coverJpgFileInfo) {
+			const coverJpgFileHash = hash(coverJpgFileInfo.filePath + coverJpgFileInfo.stats.size);
+			if (!this.cache.has(coverJpgFileHash)) {
+				const coverJpgImage = await sharp(app.fs.readFileSync(coverJpgFileInfo.filePath));
+				const coverJpgImageMetadata = await coverJpgImage.metadata();
+
+				const size = Math.min(COVER_MAX_SIZE, coverJpgImageMetadata.width, coverJpgImageMetadata.height);
+				if (coverJpgImageMetadata.width !== size ||
+					coverJpgImageMetadata.height !== size) {
+					const imageBuffer = await coverJpgImage
+						.resize(size, size)
+						.jpeg({ quality: 100 })
+						.toBuffer();
+
+					app.fs.outputFileSync(app.path.posix.join(coverJpgFileInfo.fileDirectory, COVER_JPEG_FILENAME), imageBuffer);
+				}
+
+				this.cache(coverJpgFileHash);
+			}
+
+			coverFilePath = coverJpgFileInfo.filePath;
+			// coverHash = hash(app.fs.readFileSync(coverFilePath));
+		}
+
+		return coverFilePath;
+	}
+
+	async processTrackFileInfo(fileInfo, trackFileName, trackHash, tags) {
+		const ALLOWED_TAGS = [
+			"artist",
+			"album",
+			"trackNumber",
+			"title",
+			"genre",
+			"year",
+			"image",
+			"compilation",
+			"unsynchronisedLyrics"
+		];
+
+		for (const tagName of Object.keys(tags)) {
+			if (!ALLOWED_TAGS.includes(tagName)) app.libs._.unset(tags, tagName);
+		}
+
+		let trackFilePath = fileInfo.filePath;
+
+		if (fileInfo.fileName !== trackFileName) {
+			trackFilePath = app.path.posix.join(fileInfo.fileDirectory, trackFileName);
+			// app.log.info(`Correct filename is ${trackFilePath}`);
+
+			app.fs.copyFileSync(fileInfo.filePath, trackFilePath);
+			app.fs.removeSync(fileInfo.filePath);
+		}
+
+		writeTags(tags, trackFilePath);
+
+		// app.log.info(`${trackFilePath} processed`);
+
+		this.cache.cache(trackHash);
+	}
+
+	async processArtistsLibrary() {
+		const artistsLibraryFolder = app.path.posix.join(this.rootPath, LIBRARY_SUBDIRECTORIES.ARTISTS);
+
+		for (const artistFileInfo of app.tools.getFileInfosFromDirectory(artistsLibraryFolder)) {
+			const artist = artistFileInfo.fileName;
+
+			if (!artistFileInfo.isDirectory) {
+				app.log.error(`Not a directory ${artistFileInfo.filePath}`);
+
+				continue;
+			}
+
+			for (const albumFileInfo of app.tools.getFileInfosFromDirectory(artistFileInfo.filePath)) {
+				const album = albumFileInfo.fileName;
+
+				if (!albumFileInfo.isDirectory) {
+					app.log.error(`Not a directory ${albumFileInfo.filePath}`);
+
+					continue;
+				}
+
+				let albumFiles = app.tools.getFileInfosFromDirectory(albumFileInfo.filePath);
+
+				// в альбоме можно держать папку files со всяким барахлом там
+				albumFiles = albumFiles.filter(fileInfo => !(fileInfo.isDirectory &&
+					fileInfo.fileName === "files"));
+
+				albumFiles
+					.forEach(fileInfo => {
+						if (!fileInfo.isFile) app.log.error(`Not a file ${fileInfo.filePath}`);
+					});
+
+				if (albumFiles.some(fileInfo => fileInfo.isDirectory)) {
+					app.log.error(`${albumFileInfo.filePath} contains folders`);
+
+					continue;
+				}
+
+				const coverFilePath = await this.processCoverAndGetCoverFilePath(albumFiles);
+				if (!coverFilePath) {
+					app.log.error(`No cover ${albumFileInfo.filePath}`);
+
+					continue;
+				}
+
+				albumFiles = albumFiles.filter(fileInfo => fileInfo.fileName.toLowerCase() !== COVER_JPEG_FILENAME);
+
+				for (const albumItemFileInfo of albumFiles) {
+					if (app.path.extname(albumItemFileInfo.fileName).toLowerCase() !== EXTENSION_MP3) {
+						app.log.error(`Not a ${EXTENSION_MP3} file ${albumItemFileInfo.filePath}`);
+
+						continue;
+					}
+
+					const trackHash = hash(albumItemFileInfo.filePath + albumItemFileInfo.stats.size);
+					if (this.cache.has(trackHash)) return;
+
+					const tags = readTags(albumItemFileInfo.filePath);
+
+					tags.artist = this.nameCase(tags.artist);
+					if (app.tools.filenamify(tags.artist) !== artist) {
+						app.log.error(`Bad artist ${albumItemFileInfo.filePath}, tag artist ${tags.artist}, directory artist ${artist}, safe artist ${app.tools.filenamify(tags.artist)}`);
+
+						return;
+					}
+
+					tags.album = this.nameCase(tags.album);
+					if (app.tools.filenamify(tags.album) !== album) {
+						app.log.error(`Bad album ${albumItemFileInfo.filePath}, tag album ${tags.album}, directory album ${album}, safe album ${app.tools.filenamify(tags.album)}`);
+
+						return;
+					}
+
+					if (!tags.trackNumber &&
+						albumFiles.length === 1) tags.trackNumber = "01";
+
+					if (!Number.isInteger(parseFloat(tags.trackNumber))) {
+						app.log.error(`Bad trackNumber ${albumItemFileInfo.filePath}`);
+
+						return;
+					} else {
+						tags.trackNumber = app.tools.formatTrackNumber(parseFloat(tags.trackNumber));
+					}
+
+					tags.title = this.nameCase(tags.title);
+					if (!tags.title) {
+						app.log.error(`Bad title ${albumItemFileInfo.filePath}`);
+
+						return;
+					}
+
+					if (tags.year !== undefined &&
+						(!Number.isInteger(parseFloat(tags.year)) ||
+							!(/\d\d\d\d/.test(tags.year)))) {
+						app.log.error(`Bad year ${albumItemFileInfo.filePath}`);
+
+						return;
+					}
+
+					if (tags.genre) tags.genre = this.nameCase(tags.genre);
+
+					// if (!tags.image) {
+					// 	app.log.error(`Bad image ${albumItemFileInfo.filePath}`);
+
+					// 	continue;
+					// } else {
+					// 	const trackCoverHash = hash(tags.image.imageBuffer);
+					// 	if (trackCoverHash !== coverHash) {
+					// 		app.log.error(`Different image ${albumItemFileInfo.filePath}`);
+
+					// 		continue;
+					// 	}
+					// }
+
+					tags.image = coverFilePath;
+
+					let trackFileName = `${tags.trackNumber}. ${tags.artist} - ${tags.album}`;
+					if (tags.year) trackFileName += ` (${tags.year})`;
+					trackFileName += ` - ${tags.title}.mp3`;
+					trackFileName = app.tools.filenamify(trackFileName);
+
+					await this.processTrackFileInfo(albumItemFileInfo, trackFileName, trackHash, tags);
+				}
+			}
+		}
+	}
+
+	async processCompilationsAndOSTLibrary() {
+		await this.processCompilationsDirectory(app.path.posix.join(this.rootPath, LIBRARY_SUBDIRECTORIES.COMPILATIONS), null);
+		await this.processCompilationsDirectory(app.path.posix.join(this.rootPath, LIBRARY_SUBDIRECTORIES.OST), null);
+	}
+
+	async processCompilationsDirectory(directory, compilationName) {
+		const directoryFileInfos = app.tools.getFileInfosFromDirectory(directory);
+		if (directoryFileInfos.every(fileInfo => fileInfo.isDirectory)) {
+			for (const directoryFileInfo of directoryFileInfos) {
+				await this.processCompilationsDirectory(directoryFileInfo.filePath, directoryFileInfo.fileName);
+			}
+		} else {
+			await this.processCompilation(directory, compilationName, directoryFileInfos);
+		}
+	}
+
+	async processCompilation(directory, compilationName, directoryFileInfos) {
+		// в альбоме можно держать папку files со всяким барахлом там
+		directoryFileInfos = directoryFileInfos.filter(fileInfo => !(fileInfo.isDirectory &&
+			fileInfo.fileName === "files"));
+
+		directoryFileInfos
+			.forEach(fileInfo => {
+				if (!fileInfo.isFile) app.log.error(`Not a file ${fileInfo.filePath}`);
+			});
+
+		if (directoryFileInfos.some(fileInfo => fileInfo.isDirectory)) {
+			app.log.error(`${directory} contains folders`);
+
+			return;
+		}
+
+		const coverFilePath = await this.processCoverAndGetCoverFilePath(directoryFileInfos);
+		if (!coverFilePath) {
+			app.log.error(`No cover ${directory}`);
+
+			return;
+		}
+
+		directoryFileInfos = directoryFileInfos.filter(fileInfo => fileInfo.fileName.toLowerCase() !== COVER_JPEG_FILENAME);
+
+		for (const directoryFileInfo of directoryFileInfos) {
+			if (app.path.extname(directoryFileInfo.fileName).toLowerCase() !== EXTENSION_MP3) {
+				app.log.error(`Not a ${EXTENSION_MP3} file ${directoryFileInfo.filePath}`);
+
+				continue;
+			}
+
+			const trackHash = hash(directoryFileInfo.filePath + directoryFileInfo.stats.size);
+			if (this.cache.has(trackHash)) return;
+
+			const tags = readTags(directoryFileInfo.filePath);
+
+			tags.album = this.nameCase(tags.album);
+			if (app.tools.filenamify(tags.album) !== compilationName) {
+				app.log.error(`Bad album ${directoryFileInfo.filePath}, tag album ${tags.album}, directory album ${compilationName}, safe album ${app.tools.filenamify(tags.album)}`);
+
+				return;
+			}
+
+			if (!tags.trackNumber &&
+				directoryFileInfos.length === 1) tags.trackNumber = "01";
+
+			if (!Number.isInteger(parseFloat(tags.trackNumber))) {
+				app.log.error(`Bad trackNumber ${directoryFileInfo.filePath}`);
+
+				return;
+			} else {
+				tags.trackNumber = app.tools.formatTrackNumber(parseFloat(tags.trackNumber));
+			}
+
+			tags.title = this.nameCase(tags.title);
+			if (!tags.title) {
+				app.log.error(`Bad title ${directoryFileInfo.filePath}`);
+
+				return;
+			}
+
+			if (tags.year !== undefined &&
+				(!Number.isInteger(parseFloat(tags.year)) ||
+					!(/\d\d\d\d/.test(tags.year)))) {
+				app.log.error(`Bad year ${directoryFileInfo.filePath}`);
+
+				return;
+			}
+
+			if (tags.genre) tags.genre = this.nameCase(tags.genre);
+
+			// if (!tags.image) {
+			// 	app.log.error(`Bad image ${albumItemFileInfo.filePath}`);
+
+			// 	continue;
+			// } else {
+			// 	const trackCoverHash = hash(tags.image.imageBuffer);
+			// 	if (trackCoverHash !== coverHash) {
+			// 		app.log.error(`Different image ${albumItemFileInfo.filePath}`);
+
+			// 		continue;
+			// 	}
+			// }
+
+			tags.image = coverFilePath;
+
+			tags.compilation = "1";
+
+			let trackFileName = `${tags.trackNumber}. ${tags.artist} - ${tags.album}`;
+			if (tags.year) trackFileName += ` (${tags.year})`;
+			trackFileName += ` - ${tags.title}.mp3`;
+			trackFileName = app.tools.filenamify(trackFileName);
+
+			await this.processTrackFileInfo(directoryFileInfo, trackFileName, trackHash, tags);
+		}
+	}
+}
 
 class LibraryManager extends ndapp.ApplicationComponent {
 	async initialize() {
 		await super.initialize();
 	}
 
-	async processLibrary(root) {
-		let processedLibraryCache = new Set();
-		try {
-			processedLibraryCache = new Set(app.tools.json.load(app.getUserDataPath("processedLibraryCache.json")));
-		} catch (_) {
-		}
-
-		const artistsLibraryFolder = app.path.posix.join(root, ARTISTS_SUBDIRECTORY);
-
-		for (const artistFileInfo of app.tools.getFileInfosFromDirectory(artistsLibraryFolder)) {
-			// folders with artists
-			const artist = artistFileInfo.fileName;
-
-			if (processedLibraryCache.has(artist)) continue;
-
-			if (!artistFileInfo.isDirectory) {
-				app.log.info(`Not a directory ${artistFileInfo.filePath}`);
-
-				continue;
-			}
-
-			for (const albumFileInfo of app.tools.getFileInfosFromDirectory(artistFileInfo.filePath)) {
-				// folders with albums
-				const album = albumFileInfo.fileName;
-
-				if (!albumFileInfo.isDirectory) {
-					app.log.info(`Not a directory ${albumFileInfo.filePath}`);
-
-					continue;
-				}
-
-				// folders with tracks & cover
-				let albumFiles = app.tools.getFileInfosFromDirectory(albumFileInfo.filePath);
-
-				albumFiles
-					.forEach(fileInfo => {
-						if (!fileInfo.isFile) app.log.info(`Not a file ${fileInfo.filePath}`);
-					});
-
-				let coverFilePath;
-				let coverHash;
-
-				const coverPngFileInfo = albumFiles.find(fileInfo => fileInfo.fileName.toLowerCase() === "cover.png");
-				if (coverPngFileInfo) {
-					const coverPngImage = await sharp(app.fs.readFileSync(coverPngFileInfo.filePath));
-					const coverPngImageMetadata = await coverPngImage.metadata();
-
-					const size = Math.min(COVER_MAX_SIZE, coverPngImageMetadata.width, coverPngImageMetadata.height);
-
-					const imageBuffer = await coverPngImage
-						.resize(size, size)
-						.jpeg({ quality: 100 })
-						.toBuffer();
-
-					app.fs.outputFileSync(app.path.posix.join(coverPngFileInfo.fileDirectory, "cover.jpg"), imageBuffer);
-					app.fs.removeSync(coverPngFileInfo.filePath);
-
-					albumFiles = app.tools.getFileInfosFromDirectory(albumFileInfo.filePath);
-				}
-
-				const coverJpgFileInfo = albumFiles.find(fileInfo => fileInfo.fileName.toLowerCase() === "cover.jpg");
-				if (coverJpgFileInfo) {
-					const coverJpgImage = await sharp(app.fs.readFileSync(coverJpgFileInfo.filePath));
-					const coverJpgImageMetadata = await coverJpgImage.metadata();
-
-					const size = Math.min(COVER_MAX_SIZE, coverJpgImageMetadata.width, coverJpgImageMetadata.height);
-					if (coverJpgImageMetadata.width !== size ||
-						coverJpgImageMetadata.height !== size) {
-						const imageBuffer = await coverJpgImage
-							.resize(size, size)
-							.jpeg({ quality: 100 })
-							.toBuffer();
-
-						app.fs.outputFileSync(app.path.posix.join(coverJpgFileInfo.fileDirectory, "cover.jpg"), imageBuffer);
-					}
-
-					coverFilePath = coverJpgFileInfo.filePath;
-					coverHash = hasha(app.fs.readFileSync(coverFilePath), { algorithm: "md5" });
-				}
-
-				if (!coverFilePath) {
-					app.log.info(`No cover ${albumFileInfo.filePath}`);
-
-					continue;
-				}
-
-				for (const albumItemFileInfo of albumFiles) {
-					if (albumItemFileInfo.fileName.toLowerCase() === "cover.jpg") continue;
-
-					if (app.path.extname(albumItemFileInfo.fileName).toLowerCase() !== EXTENSION_MP3) {
-						app.log.info(`Not a ${EXTENSION_MP3} file ${albumItemFileInfo.filePath}`);
-
-						continue;
-					}
-
-					const tags = NodeID3.read(albumItemFileInfo.filePath);
-
-					let tagsError;
-					let correctArtist;
-					let correctAlbum;
-					let correctTrackNumber;
-					let correctTitle;
-					let correctYear;
-					let correctFileName;
-
-					tags.artist = app.tools.nameCase(tags.artist);
-					tags.album = app.tools.nameCase(tags.album);
-					tags.title = app.tools.nameCase(tags.title);
-					if (tags.genre) tags.genre = app.tools.nameCase(tags.genre);
-
-					if (app.tools.filenamify(app.tools.nameCase(tags.artist)) !== artist) {
-						tagsError = true;
-
-						app.log.info(`Bad artist ${albumItemFileInfo.filePath}`);
-					} else {
-						correctArtist = true;
-					}
-
-					if (app.tools.filenamify(tags.album) !== album) {
-						tagsError = true;
-
-						app.log.info(`Bad album ${albumItemFileInfo.filePath}`);
-					} else {
-						correctAlbum = true;
-					}
-
-					if (!Number.isInteger(parseFloat(tags.trackNumber))) {
-						tagsError = true;
-
-						app.log.info(`Bad trackNumber ${albumItemFileInfo.filePath}`);
-					} else {
-						correctTrackNumber = true;
-
-						tags.trackNumber = app.libs._.padStart(String(tags.trackNumber), 2, "0");
-					}
-
-					if (!tags.title) {
-						tagsError = true;
-
-						app.log.info(`Bad title ${albumItemFileInfo.filePath}`);
-					} else {
-						correctTitle = true;
-					}
-
-					// if (!tags.genre) {
-					// 	tagsError = true;
-
-					// 	app.log.info(`Bad genre ${albumItemFileInfo.filePath}`);
-					// }
-
-					if (tags.year !== undefined &&
-						(!Number.isInteger(parseFloat(tags.year)) ||
-							!(/\d\d\d\d/.test(tags.year)))) {
-						tagsError = true;
-
-						app.log.info(`Bad year ${albumItemFileInfo.filePath}`);
-					} else {
-						correctYear = true;
-					}
-
-					if (!tags.image) {
-						tagsError = true;
-
-						app.log.info(`Bad image ${albumItemFileInfo.filePath}`);
-					} else {
-						const trackCoverHash = hasha(tags.image.imageBuffer, { algorithm: "md5" });
-						if (trackCoverHash !== coverHash) {
-							tagsError = true;
-
-							// app.log.info(`Different image ${albumItemFileInfo.filePath}`);
-						}
-					}
-
-					continue;
-
-					let trackFileName = `${tags.trackNumber}. ${tags.artist} - ${tags.album}`;
-					if (tags.year !== undefined) trackFileName += ` (${tags.year})`;
-					trackFileName += ` - ${tags.title}.mp3`;
-					trackFileName = app.tools.filenamify(trackFileName);
-
-					if (albumItemFileInfo.fileName !== trackFileName) {
-						tagsError = true;
-
-						// app.log.info(`Bad file name ${albumItemFileInfo.filePath}`);
-					} else {
-						correctFileName = true;
-					}
-
-					const tagNames = new Set(Object.keys(tags));
-
-					tagNames.delete("raw");
-					tagNames.delete("artist");
-					tagNames.delete("album");
-					tagNames.delete("trackNumber");
-					tagNames.delete("title");
-					tagNames.delete("genre");
-					tagNames.delete("year");
-					tagNames.delete("image");
-
-					const specialTags = {};
-					if (tagNames.has("unsynchronisedLyrics")) {
-						specialTags.unsynchronisedLyrics = tags.unsynchronisedLyrics;
-						tagNames.delete("unsynchronisedLyrics");
-					}
-
-					if (tagNames.size > 0) {
-						tagsError = true;
-
-						app.log.info(`Other tags ${Array.from(tagNames).join(", ")} in ${albumItemFileInfo.filePath}`);
-					}
-
-					if (tagsError) {
-						if (correctArtist &&
-							correctAlbum &&
-							correctTrackNumber &&
-							correctTitle &&
-							correctYear &&
-							coverFilePath) {
-							const correctTags = {
-								...specialTags,
-								artist: tags.artist,
-								album: tags.album,
-								trackNumber: tags.trackNumber,
-								title: tags.title,
-								genre: tags.genre,
-								year: tags.year,
-								image: coverFilePath
-							};
-
-							let trackFilePath = albumItemFileInfo.filePath;
-
-							if (!correctFileName) {
-								trackFilePath = app.path.posix.join(albumItemFileInfo.fileDirectory, trackFileName);
-								app.log.info(`Correct filename is ${trackFilePath}`);
-
-								app.fs.copyFileSync(albumItemFileInfo.filePath, trackFilePath);
-								app.fs.removeSync(albumItemFileInfo.filePath);
-							}
-
-							NodeID3.write(correctTags, trackFilePath);
-						} else {
-							app.log.info(`Bad file ${albumItemFileInfo.filePath}`);
-						}
-					}
-				}
-			}
-
-			processedLibraryCache.add(artist);
-			app.tools.json.save(app.getUserDataPath("processedLibraryCache.json"), Array.from(processedLibraryCache));
-		}
+	async processLibrary(rootPath) {
+		const libraryProcessor = new LibraryProcessor(rootPath);
+		await libraryProcessor.process();
 	}
 };
 
-LibraryManager.ARTISTS_SUBDIRECTORY = ARTISTS_SUBDIRECTORY;
+LibraryManager.LIBRARY_SUBDIRECTORIES = LIBRARY_SUBDIRECTORIES;
 
 module.exports = LibraryManager;

@@ -1,8 +1,32 @@
 const ndapp = require("ndapp");
+const { Command } = require("commander");
 const filenamifyLibrary = require("filenamify");
-// const { Command } = require("commander");
 
-// const package = require("./package.json");
+// TODO сделать свою либу для ID3
+// node-id3 либа почему то игнорирует неопределенные для нее тэги
+const ID3Definitions = require("node-id3/src/ID3Definitions");
+ID3Definitions.FRAME_IDENTIFIERS.v3.compilation = "TCMP";
+ID3Definitions.FRAME_IDENTIFIERS.v4.compilation = "TCMP";
+ID3Definitions.FRAME_INTERNAL_IDENTIFIERS.v3.TCMP = "compilation";
+ID3Definitions.FRAME_INTERNAL_IDENTIFIERS.v4.TCMP = "compilation";
+
+const packageInfo = require("./package.json");
+
+const CONFIG = {
+	acronyms: [],
+	upload: [
+		// {
+		// 	type: "fs",
+		// 	root: ROOT_FOLDER
+		// },
+		// {
+		// 	type: "ftp",
+		// 	host: "HOST",
+		// 	port: PORT,
+		// 	root: "/ROOT_FOLDER"
+		// }
+	]
+};
 
 class AppManager extends ndapp.Application {
 	constructor() {
@@ -21,52 +45,44 @@ class AppManager extends ndapp.Application {
 	}
 
 	async initialize() {
-		app.config = require("./config");
-
-		try {
-			app.libs._.merge(app.config, require("./config.local"));
-		} catch (_) {
-		}
+		this.loadConfig();
 
 		await super.initialize();
+	}
+
+	loadConfig() {
+		app.config = CONFIG;
+
+		try {
+			app.libs._.merge(app.config, require("./config"));
+		} catch (_) {
+		}
 	}
 
 	async run() {
 		await super.run();
 
-		// const program = new Command();
+		const program = new Command();
 
-		// program
-		// 	.name(package.name)
-		// 	// .description()
-		// 	.version(package.version);
+		program
+			.name(packageInfo.name)
+			.version(packageInfo.version)
+			.description("Application to download and store music in strong hierarchy");
 
-		// program.command("checkLibrary")
-		// 	.description("Split a string into substrings and display as an array")
-		// 	.argument("<string>", "string to split")
-		// 	.option("--first", "display just the first substring")
-		// 	.option("-s, --separator <char>", "separator character", ",")
-		// 	.action((str, options) => {
-		// 		const limit = options.first ? 1 : undefined;
-		// 		console.log(str.split(options.separator, limit));
-		// 	});
+		program.command("processLibrary")
+			.description("Check all files and transform music library to strong format")
+			.action(async (options, command) => {
+				await app.libraryManager.processLibrary(app.uploadManager.uploaders[app.enums.UPLOADER_TYPES.DISK].info.root);
+			});
 
-		// program.command("yandex")
-		// 	.description("Split a string into substrings and display as an array")
-		// 	.argument("<string>", "string to split")
-		// 	.option("--first", "display just the first substring")
-		// 	.option("-s, --separator <char>", "separator character", ",")
-		// 	.action((str, options) => {
-		// 		const limit = options.first ? 1 : undefined;
-		// 		console.log(str.split(options.separator, limit));
-		// 	});
+		program.command("yandex")
+			.description("Run browser to download music from Yandex.Music")
+			.action(async (options, command) => {
+				await app.browserManager.openBrowser();
+				await app.browserManager.page.navigate("https://music.yandex.ru/");
+			});
 
-		// program.parse();
-
-		await app.libraryManager.processLibrary(app.uploadManager.uploaders[app.enums.UPLOADER_TYPES.DISK].info.root);
-
-		// await app.browserManager.openBrowser();
-		// await app.browserManager.page.navigate(app.tools.urljoin("https://music.yandex.ru/album", String(app.config.yandexAlbumId)));
+		program.parse();
 	}
 }
 
@@ -87,6 +103,9 @@ ndapp({
 		getFileInfosFromDirectory: require("./tools/getFileInfosFromDirectory"),
 		filenamify: function (path) {
 			return filenamifyLibrary(path, { maxLength: 1024, replacement: " " });
+		},
+		formatTrackNumber(number) {
+			return app.libs._.padStart(String(number), 2, "0");
 		}
 	}
 });

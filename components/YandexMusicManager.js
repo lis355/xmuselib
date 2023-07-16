@@ -130,6 +130,7 @@ module.exports = class YandexMusicBrowserManager extends ndapp.ApplicationCompon
 					filePath: app.getUserDataPath("temp", "covers", `${albumId}.jpg`),
 					downloaded: false
 				},
+				compilation: albumInfo.type === "compilation",
 				processed: false
 			};
 
@@ -142,6 +143,7 @@ module.exports = class YandexMusicBrowserManager extends ndapp.ApplicationCompon
 	createTrackInfo(trackInfo) {
 		const trackId = trackInfo.id;
 		if (!this.trackInfos[trackId]) {
+			trackInfo.artist = app.tools.nameCase(app.libs._.first(trackInfo.artists).name);
 			trackInfo.name = app.tools.nameCase(trackInfo.title);
 
 			if (trackInfo.artists.length > 1) trackInfo.name += ` (feat. ${trackInfo.artists.slice(1).map(artistInfo => app.tools.nameCase(artistInfo.name))})`;
@@ -198,14 +200,16 @@ module.exports = class YandexMusicBrowserManager extends ndapp.ApplicationCompon
 		const trackAlbumInfo = trackInfo.info.albums.find(info => info.id === albumInfo.info.id);
 
 		const tags = {
-			artist: albumInfo.info.artist,
+			artist: trackInfo.info.artist,
 			album: albumInfo.info.name,
-			trackNumber: app.libs._.padStart(String(trackAlbumInfo.trackPosition.index), 2, "0"),
+			trackNumber: app.tools.formatTrackNumber(trackAlbumInfo.trackPosition.index),
 			title: trackInfo.info.name,
 			genre: albumInfo.info.genre,
 			year: albumInfo.info.year,
 			image: albumInfo.cover.filePath
 		};
+
+		if (albumInfo.compilation) tags.compilation = "1";
 
 		trackInfo.outFileName = app.tools.filenamify(`${tags.trackNumber}. ${tags.artist} - ${tags.album} (${tags.year}) - ${tags.title}.mp3`);
 		trackInfo.outFilePath = app.path.posix.join(albumInfo.albumPath, trackInfo.outFileName);
@@ -220,11 +224,7 @@ module.exports = class YandexMusicBrowserManager extends ndapp.ApplicationCompon
 	getTrackInfoText(trackId) {
 		const trackInfo = this.trackInfos[trackId];
 
-		// TODO correct albums
-		if (trackInfo.info.albums > 1) debugger;
-		const albumInfo = this.albumInfos[app.libs._.first(trackInfo.info.albums).id];
-
-		return `${albumInfo && albumInfo.info.artist} - ${trackInfo.info.name}`;
+		return `${trackInfo.info.artist} - ${trackInfo.info.name}`;
 	}
 
 	getAlbumInfoText(albumId) {

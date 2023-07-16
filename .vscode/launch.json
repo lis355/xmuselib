@@ -10,12 +10,25 @@
 			"skipFiles": [
 				"<node_internals>/**"
 			],
-			"name": "start",
+			"name": "cmd processLibrary",
 			"program": "${workspaceFolder}/main.js",
-			"args": [],
-			"env": {
-				"DEBUG": "*"
-			}
+			"args": [
+				"processLibrary"
+			],
+			"env": {}
+		},
+		{
+			"type": "node",
+			"request": "launch",
+			"skipFiles": [
+				"<node_internals>/**"
+			],
+			"name": "cmd yandex",
+			"program": "${workspaceFolder}/main.js",
+			"args": [
+				"yandex"
+			],
+			"env": {}
 		}
 	]
 }
