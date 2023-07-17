@@ -118,7 +118,7 @@ class LibraryProcessor {
 					app.fs.outputFileSync(app.path.posix.join(coverJpgFileInfo.fileDirectory, COVER_JPEG_FILENAME), imageBuffer);
 				}
 
-				this.cache(coverJpgFileHash);
+				this.cache.cache(coverJpgFileHash);
 			}
 
 			coverFilePath = coverJpgFileInfo.filePath;
@@ -164,8 +164,8 @@ class LibraryProcessor {
 
 	async processArtistsLibrary() {
 		const artistsLibraryFolder = app.path.posix.join(this.rootPath, LIBRARY_SUBDIRECTORIES.ARTISTS);
-
-		for (const artistFileInfo of app.tools.getFileInfosFromDirectory(artistsLibraryFolder)) {
+		const artistFileInfos = app.tools.getFileInfosFromDirectory(artistsLibraryFolder);
+		for (const artistFileInfo of artistFileInfos) {
 			const artist = artistFileInfo.fileName;
 
 			if (!artistFileInfo.isDirectory) {
@@ -217,7 +217,7 @@ class LibraryProcessor {
 					}
 
 					const trackHash = hash(albumItemFileInfo.filePath + albumItemFileInfo.stats.size);
-					if (this.cache.has(trackHash)) return;
+					if (this.cache.has(trackHash)) continue;
 
 					const tags = readTags(albumItemFileInfo.filePath);
 
@@ -225,14 +225,14 @@ class LibraryProcessor {
 					if (app.tools.filenamify(tags.artist) !== artist) {
 						app.log.error(`Bad artist ${albumItemFileInfo.filePath}, tag artist ${tags.artist}, directory artist ${artist}, safe artist ${app.tools.filenamify(tags.artist)}`);
 
-						return;
+						continue;
 					}
 
 					tags.album = this.nameCase(tags.album);
 					if (app.tools.filenamify(tags.album) !== album) {
 						app.log.error(`Bad album ${albumItemFileInfo.filePath}, tag album ${tags.album}, directory album ${album}, safe album ${app.tools.filenamify(tags.album)}`);
 
-						return;
+						continue;
 					}
 
 					if (!tags.trackNumber &&
@@ -241,7 +241,7 @@ class LibraryProcessor {
 					if (!Number.isInteger(parseFloat(tags.trackNumber))) {
 						app.log.error(`Bad trackNumber ${albumItemFileInfo.filePath}`);
 
-						return;
+						continue;
 					} else {
 						tags.trackNumber = app.tools.formatTrackNumber(parseFloat(tags.trackNumber));
 					}
@@ -250,7 +250,7 @@ class LibraryProcessor {
 					if (!tags.title) {
 						app.log.error(`Bad title ${albumItemFileInfo.filePath}`);
 
-						return;
+						continue;
 					}
 
 					if (tags.year !== undefined &&
@@ -258,7 +258,7 @@ class LibraryProcessor {
 							!(/\d\d\d\d/.test(tags.year)))) {
 						app.log.error(`Bad year ${albumItemFileInfo.filePath}`);
 
-						return;
+						continue;
 					}
 
 					if (tags.genre) tags.genre = this.nameCase(tags.genre);
