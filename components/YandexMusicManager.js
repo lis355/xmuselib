@@ -26,21 +26,21 @@ module.exports = class YandexMusicBrowserManager extends ndapp.ApplicationCompon
 		const requestUrl = new URL(params.request.url);
 		const contentTypeHeader = params.responseHeaders.find(header => header.name.toLowerCase() === "content-type");
 
-		if (requestUrl.origin.includes("music.yandex.ru") &&
+		if (requestUrl.origin.includes("music.yandex") &&
 			requestUrl.pathname.endsWith("handlers/album.jsx") &&
 			contentTypeHeader &&
 			contentTypeHeader.value.includes("json")) {
 			const json = await app.browserManager.page.network.getResponseJson(params);
 
 			this.createAlbumInfo(json);
-		} else if (requestUrl.origin.includes("music.yandex.ru") &&
+		} else if (requestUrl.origin.includes("music.yandex") &&
 			requestUrl.pathname.endsWith("handlers/albums.jsx") &&
 			contentTypeHeader &&
 			contentTypeHeader.value.includes("json")) {
 			const json = await app.browserManager.page.network.getResponseJson(params);
 
 			for (const albumInfo of json) this.createAlbumInfo(albumInfo);
-		} else if (requestUrl.origin.includes("music.yandex.ru") &&
+		} else if (requestUrl.origin.includes("music.yandex") &&
 			requestUrl.pathname.endsWith("handlers/tracks") &&
 			contentTypeHeader &&
 			contentTypeHeader.value.includes("json")) {
@@ -78,10 +78,6 @@ module.exports = class YandexMusicBrowserManager extends ndapp.ApplicationCompon
 				this.logToConsoleAndToBrowserConsole(`Трек [${this.getTrackInfoText(trackId)}] уже скачан`);
 			}
 
-			// https://music.yandex.ru/handlers/track.jsx?track=108091000&lang=ru&external-domain=music.yandex.ru
-			// https://music.yandex.ru/handlers/album.jsx?album=20063773&lang=ru&external-domain=music.yandex.ru
-			// await fetch("https://music.yandex.ru/handlers/track.jsx?track=108091000&lang=ru&external-domain=music.yandex.ru").then(r => r.json())
-
 			const albumId = app.libs._.first(trackInfo.info.albums).id;
 			setImmediate(async () => this.processAlbum(albumId));
 		} else if (requestUrl.origin.includes("avatars.yandex.net") &&
@@ -116,10 +112,7 @@ module.exports = class YandexMusicBrowserManager extends ndapp.ApplicationCompon
 	createAlbumInfo(albumInfo) {
 		const albumId = albumInfo.id;
 		if (!this.albumInfos[albumId]) {
-			// TODO correct artist
-			if (albumInfo.artists.length > 1) debugger;
-
-			albumInfo.artist = app.tools.nameCase(app.libs._.first(albumInfo.artists).name);
+			albumInfo.artist = app.tools.nameCase(albumInfo.artists.map(artist => artist.name).join(", "));
 			albumInfo.name = app.tools.nameCase(albumInfo.title);
 			albumInfo.genre = app.tools.nameCase(albumInfo.genre);
 
