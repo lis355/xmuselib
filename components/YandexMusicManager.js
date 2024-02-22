@@ -118,7 +118,7 @@ module.exports = class YandexMusicBrowserManager extends ndapp.ApplicationCompon
 
 			this.albumInfos[albumId] = {
 				info: albumInfo,
-				albumPath: app.getUserDataPath("music", app.tools.filenamify(albumInfo.artist), app.tools.filenamify(albumInfo.name)),
+				albumPath: app.getUserDataPath("music", [app.tools.filenamify(albumInfo.artist), app.tools.filenamify(albumInfo.name)].join(" - ")),
 				cover: {
 					filePath: app.getUserDataPath("temp", "covers", `${albumId}.jpg`),
 					downloaded: false
@@ -181,12 +181,15 @@ module.exports = class YandexMusicBrowserManager extends ndapp.ApplicationCompon
 
 		albumInfo.cover.outFilePath = app.path.posix.join(albumInfo.albumPath, "cover.jpg");
 		app.fs.copyFileSync(albumInfo.cover.filePath, albumInfo.cover.outFilePath);
+		app.fs.removeSync(albumInfo.cover.filePath);
 
 		for (const trackInfo of albumDownloadedTrackInfos) await this.outputTrackWithTagsAndCover(albumInfo, trackInfo);
 
 		albumInfo.processed = true;
 
-		app.uploadManager.uploadAlbum(albumInfo, albumDownloadedTrackInfos);
+		await app.uploadManager.uploadAlbum(albumInfo, albumDownloadedTrackInfos);
+
+		app.fs.removeSync(albumInfo.albumPath);
 	}
 
 	async outputTrackWithTagsAndCover(albumInfo, trackInfo) {
@@ -208,6 +211,7 @@ module.exports = class YandexMusicBrowserManager extends ndapp.ApplicationCompon
 		trackInfo.outFilePath = app.path.posix.join(albumInfo.albumPath, trackInfo.outFileName);
 
 		app.fs.copyFileSync(trackInfo.filePath, trackInfo.outFilePath);
+		app.fs.removeSync(trackInfo.filePath);
 
 		NodeID3.write(tags, trackInfo.outFilePath);
 

@@ -5,30 +5,28 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
+			"name": "cmd processLibrary",
 			"type": "node",
 			"request": "launch",
 			"skipFiles": [
 				"<node_internals>/**"
 			],
-			"name": "cmd processLibrary",
 			"program": "${workspaceFolder}/main.js",
 			"args": [
 				"processLibrary"
-			],
-			"env": {}
+			]
 		},
 		{
+			"name": "cmd yandex",
 			"type": "node",
 			"request": "launch",
 			"skipFiles": [
 				"<node_internals>/**"
 			],
-			"name": "cmd yandex",
 			"program": "${workspaceFolder}/main.js",
 			"args": [
 				"yandex"
-			],
-			"env": {}
+			]
 		}
 	]
 }

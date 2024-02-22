@@ -113,7 +113,7 @@ module.exports = class UploadManager extends ndapp.ApplicationComponent {
 		this.createUploaders();
 	}
 
-	async createUploaders() {
+	createUploaders() {
 		this.uploaders = app.config.upload.mapToObject(uploaderInfo => {
 			const uploaderInfoType = uploaderInfo.type;
 			let uploader;
