@@ -66,8 +66,6 @@ class LibraryProcessor {
 		} catch (_) {
 			this.settings = {};
 		}
-
-		this.nameCaseOptions = { acronyms: this.settings.acronyms };
 	}
 
 	async process() {
@@ -77,7 +75,7 @@ class LibraryProcessor {
 	}
 
 	nameCase(name) {
-		return app.tools.nameCase(name, this.nameCaseOptions);
+		return app.tools.nameCase(name, this.settings.names);
 	}
 
 	async processCoverAndGetCoverFilePath(albumFiles) {

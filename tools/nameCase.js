@@ -5,15 +5,30 @@ function isLetter(s) {
 		s.toLowerCase() !== s.toUpperCase();
 }
 
-// function isInLowerCase(c) {
-// 	return isLetter(c) &&
-// 		c === c.toLowerCase();
-// }
+function isDigit(s) {
+	return s.length === 1 &&
+		s >= "0" && s <= "9";
+}
 
-// function isInUpperCase(c) {
-// 	return isLetter(c) &&
-// 		c === c.toUpperCase();
-// }
+function isNumeralCounter(s) {
+	let i = 0;
+	while (i < s.length && isDigit(s[i])) i++;
+
+	if (i === s.length ||
+		i === 0) return false;
+
+	if (i < s.length && s[i] === "-") i++;
+
+	if (i === s.length) return false;
+
+	s = s.substring(i).toLowerCase();
+
+	return s === "st" ||
+		s === "nd" ||
+		s === "rd" ||
+		s === "th" ||
+		s === "й";
+}
 
 function splitToWordsWithSymbols(s) {
 	const words = [];
@@ -25,6 +40,7 @@ function splitToWordsWithSymbols(s) {
 		const c = s[l];
 
 		if (isLetter(c) ||
+			isDigit(c) ||
 			c === "'") continue;
 		else {
 			word = s.substring(r, l);
@@ -42,7 +58,8 @@ function splitToWordsWithSymbols(s) {
 }
 
 function nameCase(s, options = null) {
-	const acronyms = app.libs._.get(options, "acronyms", []);
+	const exceptions = app.libs._.get(options, "exceptions", []);
+	if (exceptions.includes(s)) return s;
 
 	const parts = splitToWordsWithSymbols(s);
 	let result = "";
@@ -53,9 +70,10 @@ function nameCase(s, options = null) {
 			!isLetter(part[0])) ||
 			part.toUpperCase() === part) {
 			result += part;
+		} else if (isNumeralCounter(part)) {
+			result += part.toLowerCase();
 		} else {
-			result += !ACRONYMS.includes(part) &&
-				!acronyms.includes(part) ? app.libs._.capitalize(part) : part;
+			result += !ACRONYMS.includes(part) ? app.libs._.capitalize(part) : part;
 		}
 	}
 

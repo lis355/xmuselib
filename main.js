@@ -1,6 +1,5 @@
 const ndapp = require("ndapp");
 const { Command } = require("commander");
-const filenamifyLibrary = require("filenamify");
 
 // TODO сделать свою либу для ID3
 // node-id3 либа почему то игнорирует неопределенные для нее тэги
@@ -101,11 +100,7 @@ ndapp({
 		urljoin: require("url-join"),
 		nameCase: require("./tools/nameCase"),
 		getFileInfosFromDirectory: require("./tools/getFileInfosFromDirectory"),
-		filenamify: function (path) {
-			return filenamifyLibrary(path, { maxLength: 1024, replacement: " " });
-		},
-		formatTrackNumber(number) {
-			return app.libs._.padStart(String(number), 2, "0");
-		}
+		filenamify: require("./tools/filenamify"),
+		formatTrackNumber: require("./tools/formatTrackNumber")
 	}
 });
