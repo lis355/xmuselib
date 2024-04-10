@@ -1,4 +1,3 @@
-const hasha = require("hasha");
 const sharp = require("sharp");
 const NodeID3 = require("node-id3");
 
@@ -8,10 +7,6 @@ const LIBRARY_SUBDIRECTORIES = new ndapp.enum([
 	"OST",
 	"RINGTONES"
 ]);
-
-function hash(buffer) {
-	return hasha(buffer, { algorithm: "md5" });
-}
 
 function readTags(trackFilePath) {
 	return NodeID3.read(trackFilePath, { noRaw: true });
@@ -72,6 +67,12 @@ class LibraryProcessor {
 		await this.processArtistsLibrary();
 
 		await this.processCompilationsAndOSTLibrary();
+
+		app.tools.json.save(app.path.posix.join(this.rootPath, ".info"), {
+			name: app.packageInfo.name,
+			version: app.packageInfo.version,
+			date: app.moment().toString()
+		});
 	}
 
 	nameCase(name) {
@@ -83,6 +84,12 @@ class LibraryProcessor {
 		for (const [key, value] of Object.entries(replaces)) name = name.replace(key, value);
 
 		return app.tools.filenamify(name);
+	}
+
+	fileHash(filePath, stats) {
+		filePath = filePath.replace(this.rootPath, "");
+
+		return app.tools.hash(filePath, stats.size);
 	}
 
 	async processCoverAndGetCoverFilePath(albumFiles) {
@@ -107,7 +114,7 @@ class LibraryProcessor {
 
 		const coverJpgFileInfo = albumFiles.find(fileInfo => fileInfo.fileName.toLowerCase() === COVER_JPEG_FILENAME);
 		if (coverJpgFileInfo) {
-			const coverJpgFileHash = hash(coverJpgFileInfo.filePath + coverJpgFileInfo.stats.size);
+			const coverJpgFileHash = this.fileHash(coverJpgFileInfo.filePath, coverJpgFileInfo.stats);
 			if (!this.cache.has(coverJpgFileHash)) {
 				const coverJpgImage = await sharp(app.fs.readFileSync(coverJpgFileInfo.filePath));
 				const coverJpgImageMetadata = await coverJpgImage.metadata();
@@ -182,7 +189,7 @@ class LibraryProcessor {
 			for (const albumFileInfo of app.tools.getFileInfosFromDirectory(artistFileInfo.filePath)) {
 				const album = albumFileInfo.fileName;
 
-				// app.log.info(`Processing ${artist} - ${album}`);
+				app.log.info(`Processing ${artist} - ${album}`);
 
 				if (!albumFileInfo.isDirectory) {
 					app.log.error(`Not a directory ${albumFileInfo.filePath}`);
@@ -223,7 +230,7 @@ class LibraryProcessor {
 						continue;
 					}
 
-					const trackHash = hash(albumItemFileInfo.filePath + albumItemFileInfo.stats.size);
+					const trackHash = this.fileHash(albumItemFileInfo.filePath, albumItemFileInfo.stats);
 					if (this.cache.has(trackHash)) continue;
 
 					const tags = readTags(albumItemFileInfo.filePath);
@@ -344,7 +351,7 @@ class LibraryProcessor {
 				continue;
 			}
 
-			const trackHash = hash(directoryFileInfo.filePath + directoryFileInfo.stats.size);
+			const trackHash = this.fileHash(directoryFileInfo.filePath, directoryFileInfo.stats);
 			if (this.cache.has(trackHash)) return;
 
 			const tags = readTags(directoryFileInfo.filePath);

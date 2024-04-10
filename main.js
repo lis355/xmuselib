@@ -98,9 +98,14 @@ ndapp({
 	},
 	tools: {
 		urljoin: require("url-join"),
-		nameCase: require("./tools/nameCase"),
-		getFileInfosFromDirectory: require("./tools/getFileInfosFromDirectory"),
+
 		filenamify: require("./tools/filenamify"),
-		formatTrackNumber: require("./tools/formatTrackNumber")
+		formatTrackNumber: require("./tools/formatTrackNumber"),
+		getFileInfosFromDirectory: require("./tools/getFileInfosFromDirectory"),
+		hash: require("./tools/hash"),
+		nameCase: require("./tools/nameCase")
+	},
+	specials: {
+		packageInfo
 	}
 });
