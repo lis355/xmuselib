@@ -30,7 +30,7 @@ class LibraryCache {
 	constructor(rootPath) {
 		this.dbPath = app.path.posix.join(rootPath, ".cache");
 
-		this.save = app.libs._.throttle(this.save.bind(this), 250, { leading: false });
+		this.save = app.libs._.debounce(this.save.bind(this), 250, { leading: false });
 
 		this.set = new Set();
 
@@ -76,6 +76,13 @@ class LibraryProcessor {
 
 	nameCase(name) {
 		return app.tools.nameCase(name, this.settings.names);
+	}
+
+	filenamify(name) {
+		const replaces = app.libs._.get(this.settings.names, "replace", {});
+		for (const [key, value] of Object.entries(replaces)) name = name.replace(key, value);
+
+		return app.tools.filenamify(name);
 	}
 
 	async processCoverAndGetCoverFilePath(albumFiles) {
@@ -175,6 +182,8 @@ class LibraryProcessor {
 			for (const albumFileInfo of app.tools.getFileInfosFromDirectory(artistFileInfo.filePath)) {
 				const album = albumFileInfo.fileName;
 
+				// app.log.info(`Processing ${artist} - ${album}`);
+
 				if (!albumFileInfo.isDirectory) {
 					app.log.error(`Not a directory ${albumFileInfo.filePath}`);
 
@@ -220,15 +229,15 @@ class LibraryProcessor {
 					const tags = readTags(albumItemFileInfo.filePath);
 
 					tags.artist = this.nameCase(tags.artist);
-					if (app.tools.filenamify(tags.artist) !== artist) {
-						app.log.error(`Bad artist ${albumItemFileInfo.filePath}, tag artist ${tags.artist}, directory artist ${artist}, safe artist ${app.tools.filenamify(tags.artist)}`);
+					if (this.filenamify(tags.artist) !== artist) {
+						app.log.error(`Bad artist ${albumItemFileInfo.filePath}, tag artist ${tags.artist}, directory artist ${artist}, safe artist ${this.filenamify(tags.artist)}`);
 
 						continue;
 					}
 
 					tags.album = this.nameCase(tags.album);
-					if (app.tools.filenamify(tags.album) !== album) {
-						app.log.error(`Bad album ${albumItemFileInfo.filePath}, tag album ${tags.album}, directory album ${album}, safe album ${app.tools.filenamify(tags.album)}`);
+					if (this.filenamify(tags.album) !== album) {
+						app.log.error(`Bad album ${albumItemFileInfo.filePath}, tag album ${tags.album}, directory album ${album}, safe album ${this.filenamify(tags.album)}`);
 
 						continue;
 					}
@@ -279,7 +288,7 @@ class LibraryProcessor {
 					let trackFileName = `${tags.trackNumber}. ${tags.artist} - ${tags.album}`;
 					if (tags.year) trackFileName += ` (${tags.year})`;
 					trackFileName += ` - ${tags.title}.mp3`;
-					trackFileName = app.tools.filenamify(trackFileName);
+					trackFileName = this.filenamify(trackFileName);
 
 					await this.processTrackFileInfo(albumItemFileInfo, trackFileName, trackHash, tags);
 				}
@@ -341,8 +350,8 @@ class LibraryProcessor {
 			const tags = readTags(directoryFileInfo.filePath);
 
 			tags.album = this.nameCase(tags.album);
-			if (app.tools.filenamify(tags.album) !== compilationName) {
-				app.log.error(`Bad album ${directoryFileInfo.filePath}, tag album ${tags.album}, directory album ${compilationName}, safe album ${app.tools.filenamify(tags.album)}`);
+			if (this.filenamify(tags.album) !== compilationName) {
+				app.log.error(`Bad album ${directoryFileInfo.filePath}, tag album ${tags.album}, directory album ${compilationName}, safe album ${this.filenamify(tags.album)}`);
 
 				return;
 			}
@@ -395,7 +404,7 @@ class LibraryProcessor {
 			let trackFileName = `${tags.trackNumber}. ${tags.artist} - ${tags.album}`;
 			if (tags.year) trackFileName += ` (${tags.year})`;
 			trackFileName += ` - ${tags.title}.mp3`;
-			trackFileName = app.tools.filenamify(trackFileName);
+			trackFileName = this.filenamify(trackFileName);
 
 			await this.processTrackFileInfo(directoryFileInfo, trackFileName, trackHash, tags);
 		}

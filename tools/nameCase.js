@@ -1,9 +1,16 @@
-const ACRONYMS = ["OST", "EP", "LP", "feat.", "prod.", "vs"];
+const ACRONYMS = {
+	"ost": "OST",
+	"ep": "EP",
+	"lp": "LP",
+	"feat.": "feat.",
+	"prod.": "prod.",
+	"vs": "vs"
+};
 
-function isLetter(s) {
-	return s.length === 1 &&
-		s.toLowerCase() !== s.toUpperCase();
-}
+// function isLetter(s) {
+// 	return s.length === 1 &&
+// 		s.toLowerCase() !== s.toUpperCase();
+// }
 
 function isDigit(s) {
 	return s.length === 1 &&
@@ -34,25 +41,28 @@ function splitToWordsWithSymbols(s) {
 	const words = [];
 	let word = "";
 
-	let r = 0;
-	let l = 0;
-	for (; l < s.length; l++) {
-		const c = s[l];
+	for (let i = 0; i < s.length; i++) {
+		const c = s[i];
 
-		if (isLetter(c) ||
-			isDigit(c) ||
-			c === "'") continue;
-		else {
-			word = s.substring(r, l);
-			words.push(word);
+		if (c === " " ||
+			c === "-") {
+			if (word) {
+				words.push(word);
+				word = "";
+			}
+
+			if (c === " " && words.length > 0 && words[words.length - 1] === " ") continue;
+
 			words.push(c);
-
-			r = l + 1;
+		} else {
+			word += c;
 		}
 	}
 
-	word = s.substring(r, l);
-	words.push(word);
+	if (word) {
+		words.push(word);
+		word = "";
+	}
 
 	return words;
 }
@@ -61,23 +71,48 @@ function nameCase(s, options = null) {
 	const exceptions = app.libs._.get(options, "exceptions", []);
 	if (exceptions.includes(s)) return s;
 
-	const parts = splitToWordsWithSymbols(s);
-	let result = "";
+	const words = splitToWordsWithSymbols(s);
 
-	for (let i = 0; i < parts.length; i++) {
-		const part = parts[i];
-		if ((part.length === 1 &&
-			!isLetter(part[0])) ||
-			part.toUpperCase() === part) {
-			result += part;
-		} else if (isNumeralCounter(part)) {
-			result += part.toLowerCase();
-		} else {
-			result += !ACRONYMS.includes(part) ? app.libs._.capitalize(part) : part;
+	for (let i = 0; i < words.length; i++) {
+		let word = words[i];
+
+		// иногда в названии люди любят писать все или в нижнем или в верхнем регистре
+		const upperCase = word === word.toUpperCase();
+		const lowerCase = word === word.toLowerCase();
+
+		let bracket;
+		let bracketLeft;
+		let bracketRight;
+		if (word[0] === "(") {
+			bracket = "(";
+			bracketLeft = true;
+			word = word.substring(1);
+		} else if (word[0] === "[") {
+			bracket = "[";
+			bracketLeft = true;
+			word = word.substring(1);
+		} else if (word[word.length - 1] === ")") {
+			bracket = ")";
+			bracketRight = true;
+			word = word.substring(0, word.length - 1);
+		} else if (word[word.length - 1] === "]") {
+			bracket = "]";
+			bracketRight = true;
+			word = word.substring(0, word.length - 1);
 		}
+
+		if (ACRONYMS[word.toLowerCase()]) word = ACRONYMS[word.toLowerCase()];
+		else if (!isNumeralCounter(word) &&
+			!upperCase &&
+			!lowerCase) word = app.libs._.capitalize(word);
+
+		if (bracketLeft) word = bracket + word;
+		if (bracketRight) word = word + bracket;
+
+		words[i] = word;
 	}
 
-	return result;
+	return words.join("");
 };
 
 module.exports = nameCase;
