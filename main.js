@@ -1,5 +1,4 @@
 const ndapp = require("ndapp");
-const { Command } = require("commander");
 
 // TODO сделать свою либу для ID3
 // node-id3 либа почему то игнорирует неопределенные для нее тэги
@@ -60,28 +59,6 @@ class AppManager extends ndapp.Application {
 
 	async run() {
 		await super.run();
-
-		const program = new Command();
-
-		program
-			.name(packageInfo.name)
-			.version(packageInfo.version)
-			.description("Application to download and store music in strong hierarchy");
-
-		program.command("processLibrary")
-			.description("Check all files and transform music library to strong format")
-			.action(async (options, command) => {
-				await app.libraryManager.processLibrary(app.uploadManager.uploaders[app.enums.UPLOADER_TYPES.DISK].info.root);
-			});
-
-		program.command("yandex")
-			.description("Run browser to download music from Yandex.Music")
-			.action(async (options, command) => {
-				await app.browserManager.openBrowser();
-				await app.browserManager.page.navigate("https://music.yandex.ru/");
-			});
-
-		program.parse();
 	}
 }
 
@@ -89,16 +66,16 @@ ndapp({
 	app: new AppManager(),
 	components: [
 		() => new (require("./components/BrowserManager"))(),
+		() => new (require("./components/CliCommandsManager"))(),
 		() => new (require("./components/LibraryManager"))(),
 		() => new (require("./components/UploadManager"))(),
-		() => new (require("./components/YandexMusicManager"))()
+		() => new (require("./components/yandexMusic/YandexMusicBrowserManager"))()
 	],
 	enums: {
 		UPLOADER_TYPES: require("./constants/uploaderTypes")
 	},
 	tools: {
 		urljoin: require("url-join"),
-
 		filenamify: require("./tools/filenamify"),
 		formatTrackNumber: require("./tools/formatTrackNumber"),
 		getFileInfosFromDirectory: require("./tools/getFileInfosFromDirectory"),

@@ -1,7 +1,6 @@
 const EventEmitter = require("events");
 
-const CLIArguments = require("../tools/sider/CLIArguments");
-const sider = require("../tools/sider");
+const sider = require("@lis355/sider");
 
 module.exports = class BrowserManager extends ndapp.ApplicationComponent {
 	async initialize() {
@@ -11,7 +10,7 @@ module.exports = class BrowserManager extends ndapp.ApplicationComponent {
 	}
 
 	async openBrowser() {
-		const args = new CLIArguments();
+		const args = new sider.CLIArguments();
 
 		args.parseArrayArguments([
 			"--start-maximized",
@@ -22,7 +21,7 @@ module.exports = class BrowserManager extends ndapp.ApplicationComponent {
 
 		args.set("--auto-open-devtools-for-tabs");
 
-		this.browser = new sider.Browser({});
+		this.browser = new sider.Browser();
 
 		await this.browser.launch({
 			executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",

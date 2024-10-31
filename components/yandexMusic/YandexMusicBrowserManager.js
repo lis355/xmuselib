@@ -1,13 +1,15 @@
-/* eslint-disable no-debugger */
+const EventEmitter = require("events");
 
 const sharp = require("sharp");
 const NodeID3 = require("node-id3");
 
-const COVER_MAX_SIZE = 500;
+const COVER_SIZE = 500;
 
 module.exports = class YandexMusicBrowserManager extends ndapp.ApplicationComponent {
 	async initialize() {
 		await super.initialize();
+
+		this.events = new EventEmitter();
 
 		app.fs.removeSync(app.getUserDataPath("temp"));
 		app.fs.removeSync(app.getUserDataPath("music"));
@@ -17,10 +19,6 @@ module.exports = class YandexMusicBrowserManager extends ndapp.ApplicationCompon
 
 		app.browserManager.events.on("response", this.processResponse.bind(this));
 	}
-
-	// async run() {
-	// 	await super.run();
-	// }
 
 	async processResponse(params) {
 		const requestUrl = new URL(params.request.url);
@@ -74,6 +72,8 @@ module.exports = class YandexMusicBrowserManager extends ndapp.ApplicationCompon
 				trackInfo.downloaded = true;
 
 				this.logToConsoleAndToBrowserConsole(`Трек [${this.getTrackInfoText(trackId)}] скачан`);
+
+				this.events.emit("trackDowloaded", trackInfo);
 			} else {
 				this.logToConsoleAndToBrowserConsole(`Трек [${this.getTrackInfoText(trackId)}] уже скачан`);
 			}
@@ -92,7 +92,7 @@ module.exports = class YandexMusicBrowserManager extends ndapp.ApplicationCompon
 				const body = await app.browserManager.page.network.getResponseBody(params.requestId);
 
 				const image = await sharp(body)
-					.resize(COVER_MAX_SIZE, COVER_MAX_SIZE)
+					.resize(COVER_SIZE, COVER_SIZE)
 					.jpeg({ quality: 100 })
 					.toBuffer();
 
@@ -101,6 +101,8 @@ module.exports = class YandexMusicBrowserManager extends ndapp.ApplicationCompon
 				albumInfo.cover.downloaded = true;
 
 				this.logToConsoleAndToBrowserConsole(`Обложка альбома [${this.getCoverInfoText(albumId)}] скачана`);
+
+				this.events.emit("albumCoverDowloaded", albumInfo);
 			} else {
 				this.logToConsoleAndToBrowserConsole(`Обложка альбома [${this.getCoverInfoText(albumId)}] уже скачана`);
 			}
@@ -128,6 +130,8 @@ module.exports = class YandexMusicBrowserManager extends ndapp.ApplicationCompon
 			};
 
 			this.logToConsoleAndToBrowserConsole(`Информация для альбома [${this.getAlbumInfoText(albumId)}] создана`);
+
+			this.events.emit("albumInfoCreated", this.albumInfos[albumId]);
 		}
 
 		return this.albumInfos[albumId];
@@ -153,6 +157,8 @@ module.exports = class YandexMusicBrowserManager extends ndapp.ApplicationCompon
 			};
 
 			this.logToConsoleAndToBrowserConsole(`Информация для трека [${this.getTrackInfoText(trackId)}] создана`);
+
+			this.events.emit("trackInfoCreated", this.trackInfos[trackId]);
 		}
 
 		return this.trackInfos[trackId];
@@ -177,6 +183,8 @@ module.exports = class YandexMusicBrowserManager extends ndapp.ApplicationCompon
 			return;
 		}
 
+		this.events.emit("albumUploadingStarted", albumInfo);
+
 		app.fs.ensureDirSync(albumInfo.albumPath);
 
 		albumInfo.cover.outFilePath = app.path.posix.join(albumInfo.albumPath, "cover.jpg");
@@ -190,6 +198,8 @@ module.exports = class YandexMusicBrowserManager extends ndapp.ApplicationCompon
 		await app.uploadManager.uploadAlbum(albumInfo, albumDownloadedTrackInfos);
 
 		app.fs.removeSync(albumInfo.albumPath);
+
+		this.events.emit("albumUploadingFinished", albumInfo);
 	}
 
 	async outputTrackWithTagsAndCover(albumInfo, trackInfo) {
