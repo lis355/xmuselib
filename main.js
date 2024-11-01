@@ -1,12 +1,6 @@
-const ndapp = require("ndapp");
+#!/usr/bin/env node
 
-// TODO сделать свою либу для ID3
-// node-id3 либа почему то игнорирует неопределенные для нее тэги
-const ID3Definitions = require("node-id3/src/ID3Definitions");
-ID3Definitions.FRAME_IDENTIFIERS.v3.compilation = "TCMP";
-ID3Definitions.FRAME_IDENTIFIERS.v4.compilation = "TCMP";
-ID3Definitions.FRAME_INTERNAL_IDENTIFIERS.v3.TCMP = "compilation";
-ID3Definitions.FRAME_INTERNAL_IDENTIFIERS.v4.TCMP = "compilation";
+const ndapp = require("ndapp");
 
 const packageInfo = require("./package.json");
 
@@ -49,10 +43,11 @@ class AppManager extends ndapp.Application {
 	}
 
 	loadConfig() {
+		app.configPath = app.path.resolve(__dirname, "config.js");
 		app.config = CONFIG;
 
 		try {
-			app.libs._.merge(app.config, require("./config"));
+			app.libs._.merge(app.config, require(app.configPath));
 		} catch (_) {
 		}
 	}
@@ -83,6 +78,7 @@ ndapp({
 		nameCase: require("./tools/nameCase")
 	},
 	specials: {
-		packageInfo
+		name: ndapp.libs._.last(packageInfo.name.split("/")),
+		version: packageInfo.version
 	}
 });

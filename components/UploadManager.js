@@ -1,8 +1,7 @@
-const { spawn } = require("child_process");
-
 const ftp = require("basic-ftp");
 
 const LibraryManager = require("./LibraryManager");
+const openDirectoryInExplorer = require("../tools/openDirectoryInExplorer");
 
 const { UPLOADER_TYPES } = app.enums;
 
@@ -42,7 +41,7 @@ class FsDiskUploader extends Uploader {
 			app.log.info("Завершено");
 		}
 
-		spawn("explorer.exe", [app.path.win32.resolve(albumDestinationFolder)]);
+		openDirectoryInExplorer(albumDestinationFolder);
 
 		app.log.info(`Завершено ${albumDestinationFolder}`);
 	}
@@ -100,7 +99,7 @@ class FtpNetUploader extends Uploader {
 
 		client.close();
 
-		spawn("explorer.exe", [`ftp://${this.info.host}:${this.info.port}${albumDestinationFolder}`]);
+		openDirectoryInExplorer(`ftp://${this.info.host}:${this.info.port}${albumDestinationFolder}`);
 
 		app.log.info(`Завершено ${albumDestinationFolder}`);
 	}

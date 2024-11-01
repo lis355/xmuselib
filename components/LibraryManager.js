@@ -1,5 +1,6 @@
 const sharp = require("sharp");
-const NodeID3 = require("node-id3");
+
+const NodeID3 = require("../libraries/node-id3");
 
 const LIBRARY_SUBDIRECTORIES = new ndapp.enum([
 	"ARTISTS",
@@ -69,8 +70,8 @@ class LibraryProcessor {
 		await this.processCompilationsAndOSTLibrary();
 
 		app.tools.json.save(app.path.posix.join(this.rootPath, ".info"), {
-			name: app.packageInfo.name,
-			version: app.packageInfo.version,
+			name: app.name,
+			version: app.version,
 			date: app.moment().toString()
 		});
 	}

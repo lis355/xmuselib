@@ -1,5 +1,7 @@
-yarn.lock
 node_modules/
-userData/
 
+yarn.lock
+package-lock.json
+
+userData/
 config.js

@@ -1,5 +1,7 @@
 const { Command } = require("commander");
+
 const YandexMusicAlbumDownloadAutomation = require("./yandexMusic/YandexMusicAlbumDownloadAutomation");
+const openDirectoryInExplorer = require("../tools/openDirectoryInExplorer");
 
 module.exports = class CliCommandsManager extends ndapp.ApplicationComponent {
 	async initialize() {
@@ -12,9 +14,13 @@ module.exports = class CliCommandsManager extends ndapp.ApplicationComponent {
 		const program = new Command();
 
 		program
-			.name(app.packageInfo.name)
-			.version(app.packageInfo.version)
-			.description("Application to download and store music in strong hierarchy");
+			.name(app.name)
+			.version(app.version)
+			.description(`Application to download and store music in strong hierarchy, [userData] located at ${app.getUserDataPath()}, [config] located at ${app.configPath}`);
+
+		program.command("config")
+			.description("Open config for manual editing")
+			.action(this.openConfigCommand.bind(this));
 
 		program.command("processLibrary")
 			.description("Check all files and transform music library to strong format")
@@ -29,11 +35,15 @@ module.exports = class CliCommandsManager extends ndapp.ApplicationComponent {
 		program.parse();
 	}
 
-	async processLibraryCommand(options, command) {
+	async openConfigCommand() {
+		openDirectoryInExplorer(app.configPath);
+	}
+
+	async processLibraryCommand() {
 		await app.libraryManager.processLibrary(app.uploadManager.uploaders[app.enums.UPLOADER_TYPES.DISK].info.root);
 	}
 
-	async yandexCommand(albums, options, command) {
+	async yandexCommand(albums, options) {
 		const automation = new YandexMusicAlbumDownloadAutomation({ albums, auto: options.auto });
 		await automation.run();
 	}

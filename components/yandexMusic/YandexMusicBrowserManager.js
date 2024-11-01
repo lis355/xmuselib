@@ -1,7 +1,8 @@
 const EventEmitter = require("events");
 
 const sharp = require("sharp");
-const NodeID3 = require("node-id3");
+
+const NodeID3 = require("../../libraries/node-id3");
 
 const COVER_SIZE = 500;
 
