@@ -14,17 +14,25 @@ const ACRONYMS = {
 
 function isDigit(s) {
 	return s.length === 1 &&
-		s >= "0" && s <= "9";
+		s >= "0" &&
+		s <= "9";
+}
+
+function isWhiteSpace(s) {
+	return s.length === 1 &&
+		s.trim().length === 0;
 }
 
 function isNumeralCounter(s) {
 	let i = 0;
-	while (i < s.length && isDigit(s[i])) i++;
+	while (i < s.length &&
+		isDigit(s[i])) i++;
 
 	if (i === s.length ||
 		i === 0) return false;
 
-	if (i < s.length && s[i] === "-") i++;
+	if (i < s.length &&
+		s[i] === "-") i++;
 
 	if (i === s.length) return false;
 
@@ -42,16 +50,21 @@ function splitToWordsWithSymbols(s) {
 	let word = "";
 
 	for (let i = 0; i < s.length; i++) {
-		const c = s[i];
+		let c = s[i];
+		const cIsWhiteSpace = isWhiteSpace(c);
 
-		if (c === " " ||
+		if (cIsWhiteSpace ||
 			c === "-") {
 			if (word) {
 				words.push(word);
 				word = "";
 			}
 
-			if (c === " " && words.length > 0 && words[words.length - 1] === " ") continue;
+			if (cIsWhiteSpace &&
+				words.length > 0 &&
+				isWhiteSpace(words[words.length - 1])) continue;
+
+			if (cIsWhiteSpace) c = " ";
 
 			words.push(c);
 		} else {
@@ -71,15 +84,14 @@ function nameCase(s, options = null) {
 	const exceptions = app.libs._.get(options, "exceptions", []);
 	if (exceptions.includes(s)) return s;
 
+	// иногда в названии люди любят писать все или в нижнем или в верхнем регистре
+	const upperCase = s === s.toUpperCase();
+	const lowerCase = s === s.toLowerCase();
+
 	const words = splitToWordsWithSymbols(s);
 
 	for (let i = 0; i < words.length; i++) {
 		let word = words[i];
-
-		// иногда в названии люди любят писать все или в нижнем или в верхнем регистре
-		const upperCase = word === word.toUpperCase();
-		const lowerCase = word === word.toLowerCase();
-
 		let bracket;
 		let bracketLeft;
 		let bracketRight;
@@ -101,10 +113,10 @@ function nameCase(s, options = null) {
 			word = word.substring(0, word.length - 1);
 		}
 
-		if (ACRONYMS[word.toLowerCase()]) word = ACRONYMS[word.toLowerCase()];
-		else if (!isNumeralCounter(word) &&
-			!upperCase &&
-			!lowerCase) word = app.libs._.capitalize(word);
+		if (upperCase) word = word.toUpperCase();
+		else if (lowerCase) word = word.toLowerCase();
+		else if (ACRONYMS[word.toLowerCase()]) word = ACRONYMS[word.toLowerCase()];
+		else if (!isNumeralCounter(word)) word = app.libs._.capitalize(word);
 
 		if (bracketLeft) word = bracket + word;
 		if (bracketRight) word = word + bracket;
