@@ -1,7 +1,6 @@
 const { Command } = require("commander");
 
 const YandexMusicAlbumDownloadAutomation = require("./yandexMusic/YandexMusicAlbumDownloadAutomation");
-const openDirectoryInExplorer = require("../tools/openDirectoryInExplorer");
 
 module.exports = class CliCommandsManager extends ndapp.ApplicationComponent {
 	async initialize() {
@@ -36,7 +35,7 @@ module.exports = class CliCommandsManager extends ndapp.ApplicationComponent {
 	}
 
 	async openConfigCommand() {
-		openDirectoryInExplorer(app.configPath);
+		await app.tools.openDirectoryInExplorer(app.path.win32.resolve(app.configPath));
 	}
 
 	async processLibraryCommand() {

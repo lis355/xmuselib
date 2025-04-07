@@ -1,8 +1,3 @@
-const {
-	click,
-	waitForSelector
-} = require("./pageUtils");
-
 module.exports = class YandexMusicAlbumDownloadAutomation {
 	constructor(options) {
 		this.isAutomation = app.libs._.get(options, "auto", false);
@@ -27,76 +22,9 @@ module.exports = class YandexMusicAlbumDownloadAutomation {
 		if (!this.isAutomation) {
 			await app.browserManager.page.navigate("https://music.yandex.ru/");
 		} else {
-			await this.runAutomationDownloadAlbums();
+			await app.yandexMusicBrowserManager.runAutomationDownloadAlbums(this.albumUrls);
 
 			app.quit();
-		}
-	}
-
-	async runAutomationDownloadAlbums() {
-		app.yandexMusicBrowserManager.events
-			.on("albumInfoCreated", albumInfo => {
-				if (this.albumUrl.includes(albumInfo.info.id.toString())) {
-					this.albumInfo = albumInfo;
-				}
-			})
-			.on("trackInfoCreated", trackInfo => {
-			})
-			.on("albumCoverDowloaded", albumInfo => {
-				this.albumCoverDowloadedPromiseResolve();
-				this.albumCoverDowloadedPromiseResolve = null;
-			})
-			.on("trackDowloaded", trackInfo => {
-				this.trackDowloadedPromiseResolve();
-				this.trackDowloadedPromiseResolve = null;
-			})
-			.on("albumUploadingStarted", albumInfo => {
-			})
-			.on("albumUploadingFinished", trackInfo => {
-				this.albumUploadingFinishedPromiseResolve();
-				this.albumUploadingFinishedPromiseResolve = null;
-			});
-
-		for (const albumUrl of this.albumUrls) {
-			this.albumUrl = albumUrl;
-
-			await app.browserManager.page.navigate(this.albumUrl);
-
-			await waitForSelector({
-				page: app.browserManager.page,
-				selector: ".entity-cover"
-			});
-
-			await waitForSelector({
-				page: app.browserManager.page,
-				selector: ".d-track[data-item-id]"
-			});
-
-			for (let i = 0; i < this.albumInfo.info.trackCount; i++) {
-				await Promise.all([
-					click({
-						page: app.browserManager.page,
-						selector: `.d-track[data-item-id='${this.albumInfo.info.trackIds[i]}'] button.button-play`
-					}),
-					new Promise(resolve => {
-						this.trackDowloadedPromiseResolve = resolve;
-					})
-				]);
-			}
-
-			await Promise.all([
-				click({
-					page: app.browserManager.page,
-					selector: "img.entity-cover__image"
-				}),
-				new Promise(resolve => {
-					this.albumCoverDowloadedPromiseResolve = resolve;
-				})
-			]);
-
-			await new Promise(resolve => {
-				this.albumUploadingFinishedPromiseResolve = resolve;
-			});
 		}
 	}
 };

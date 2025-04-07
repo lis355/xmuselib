@@ -3,10 +3,13 @@ const EventEmitter = require("events");
 const sharp = require("sharp");
 
 const NodeID3 = require("../../libraries/node-id3");
+const {
+	click,
+	waitForSelector
+} = require("./pageUtils");
 
-const COVER_SIZE = 500;
-
-module.exports = class YandexMusicBrowserManager extends ndapp.ApplicationComponent {
+// eslint-disable-next-line no-unused-vars
+class YandexMusicBrowserOldManager extends ndapp.ApplicationComponent {
 	async initialize() {
 		await super.initialize();
 
@@ -91,6 +94,8 @@ module.exports = class YandexMusicBrowserManager extends ndapp.ApplicationCompon
 
 			if (!albumInfo.cover.downloaded) {
 				const body = await app.browserManager.page.network.getResponseBody(params.requestId);
+
+				const COVER_SIZE = 500;
 
 				const image = await sharp(body)
 					.resize(COVER_SIZE, COVER_SIZE)
@@ -256,4 +261,444 @@ module.exports = class YandexMusicBrowserManager extends ndapp.ApplicationCompon
 			args: [log]
 		});
 	}
+
+	async runAutomationDownloadAlbums() {
+		let albumInfo;
+		let albumCoverDowloadedPromiseResolve;
+		let trackDowloadedPromiseResolve;
+		let albumUploadingFinishedPromiseResolve;
+
+		this.events
+			.on("albumInfoCreated", info => {
+				if (this.albumUrl.includes(info.info.id.toString())) {
+					albumInfo = info;
+				}
+			})
+			.on("trackInfoCreated", trackInfo => {
+			})
+			.on("albumCoverDowloaded", albumInfo => {
+				albumCoverDowloadedPromiseResolve();
+				albumCoverDowloadedPromiseResolve = null;
+			})
+			.on("trackDowloaded", trackInfo => {
+				trackDowloadedPromiseResolve();
+				trackDowloadedPromiseResolve = null;
+			})
+			.on("albumUploadingStarted", albumInfo => {
+			})
+			.on("albumUploadingFinished", trackInfo => {
+				albumUploadingFinishedPromiseResolve();
+				albumUploadingFinishedPromiseResolve = null;
+			});
+
+		for (const albumUrl of this.albumUrls) {
+			this.albumUrl = albumUrl;
+
+			await app.browserManager.page.navigate(this.albumUrl);
+
+			await waitForSelector({
+				page: app.browserManager.page,
+				selector: ".entity-cover"
+			});
+
+			await waitForSelector({
+				page: app.browserManager.page,
+				selector: ".d-track[data-item-id]"
+			});
+
+			for (let i = 0; i < albumInfo.info.trackCount; i++) {
+				await Promise.all([
+					click({
+						page: app.browserManager.page,
+						selector: `.d-track[data-item-id='${albumInfo.info.trackIds[i]}'] button.button-play`
+					}),
+					new Promise(resolve => {
+						trackDowloadedPromiseResolve = resolve;
+					})
+				]);
+			}
+
+			await Promise.all([
+				click({
+					page: app.browserManager.page,
+					selector: "img.entity-cover__image"
+				}),
+				new Promise(resolve => {
+					albumCoverDowloadedPromiseResolve = resolve;
+				})
+			]);
+
+			await new Promise(resolve => {
+				albumUploadingFinishedPromiseResolve = resolve;
+			});
+		}
+	}
 };
+
+class CoverInfo {
+	constructor(raw, entityInfo) {
+		this.raw = raw;
+		this.entityInfo = entityInfo;
+
+		this.uri = "https://" + this.raw.coverUri.replace("%%", "m400x400");
+
+		this.buffer = null;
+	}
+}
+
+class TrackInfo {
+	constructor(raw, albumInfo, trackNumber) {
+		this.raw = raw;
+
+		this.albumInfo = albumInfo;
+		this.trackNumber = trackNumber;
+
+		this.id = this.raw.id;
+
+		this.artist = app.tools.nameCase(app.libs._.first(this.raw.artists).name);
+
+		this.name = app.tools.nameCase(this.raw.title);
+		if (this.raw.artists.length > 1) this.name += ` (feat. ${this.raw.artists.slice(1).map(artistInfo => app.tools.nameCase(artistInfo.name)).join(", ")})`;
+		if (this.raw.version) this.name += ` (${app.tools.nameCase(this.raw.version)})`;
+
+		this.buffer = null;
+		this.extension = null;
+	}
+}
+
+class AlbumInfo {
+	constructor(raw) {
+		this.raw = raw;
+
+		this.id = this.raw.id;
+
+		this.cover = new CoverInfo(raw, this);
+
+		this.artist = this.raw.artists.map(artist => app.tools.nameCase(artist.name)).join(", ");
+		this.name = app.tools.nameCase(this.raw.title);
+		this.genre = app.tools.nameCase(this.raw.genre);
+		this.year = this.raw.year;
+		this.isCompilation = this.raw.type === "compilation";
+
+		// TODO
+		const volume = app.libs._.first(this.raw.volumes);
+
+		this.trackInfos = volume.map((trackRawData, index) => new TrackInfo(trackRawData, this, index + 1));
+	}
+}
+
+const DEBUG_FILE_CACHE_ENABLED = process.env.DEBUG_FILE_CACHE_ENABLED === "true";
+
+class YandexMusicBrowserInterfaceSpring2025Manager extends ndapp.ApplicationComponent {
+	async initialize() {
+		await super.initialize();
+
+		this.events = new EventEmitter();
+	}
+
+	getTrackInfoText(trackInfo) {
+		return `${trackInfo.artist} - ${trackInfo.name}`;
+	}
+
+	getAlbumInfoText(albumInfo) {
+		return `${albumInfo.artist} - ${albumInfo.name} (${albumInfo.year})`;
+	}
+
+	logToConsoleAndToBrowserConsole(log) {
+		app.log.info(log);
+
+		app.browserManager.page.evaluateInFrame({
+			frame: app.browserManager.page.mainFrame,
+			func: log => console.log(log),
+			args: [log]
+		});
+	}
+
+	async getAlbumInfoWithTrackInfos(albumId) {
+		const rawAlbumData = await app.browserManager.page.evaluateInFrame({
+			frame: app.browserManager.page.mainFrame,
+			func: async albumId => {
+				const response = await fetch(`https://api.music.yandex.ru/albums/${albumId}/with-tracks`, {
+					"headers": {
+						"x-yandex-music-client": "YandexMusicWebNext/1.0.0"
+					},
+					"method": "GET",
+					"credentials": "include"
+				});
+
+				const data = await response.json();
+
+				return data.result;
+			},
+			args: [albumId]
+		});
+
+		return new AlbumInfo(rawAlbumData);
+	}
+
+	async downloadTrack(trackInfo) {
+		this.logToConsoleAndToBrowserConsole(`Start downloading track ${this.getTrackInfoText(trackInfo)}`);
+
+		let buffer;
+		let extension;
+
+		const cacheFilePath = app.getUserDataPath(`${trackInfo.id}.track.mp3`);
+		if (DEBUG_FILE_CACHE_ENABLED &&
+			app.fs.existsSync(cacheFilePath)) {
+			buffer = app.fs.readFileSync(cacheFilePath);
+			extension = "mp3";
+		} else {
+			const evaluateResult = await app.browserManager.page.evaluateInFrame({
+				frame: app.browserManager.page.mainFrame,
+				func: async trackId => {
+					async function downloadTrack(trackId) {
+						// для service worker
+						// window.addEventListener("message", e => {
+						// 	if (e &&
+						// 		e.data &&
+						// 		e.data.method === "configureSource" &&
+						// 		e.data.params &&
+						// 		e.data.params.config &&
+						// 		e.data.params.config.audioDecodingKey) {
+						// 		window.audioDecodingKeys = window.audioDecodingKeys || {};
+						// 		window.audioDecodingKeys[e.data.params.source] = e.data.params.config.audioDecodingKey;
+						// 		console.log(e.data.params.source, e.data.params.config.audioDecodingKey);
+						// 	}
+						// });
+
+						const quality = "nq"; // lq nq lossless
+
+						// TODO check changing
+						const secretKey = "7tvSmFbyf5hJnIHhCimDDD";
+
+						const params = {
+							trackId,
+							quality,
+							codecs:
+								[
+									// "flac",
+									// "aac",
+									// "he-aac",
+									"mp3"
+									// "flac-mp4",
+									// "aac-mp4",
+									// "he-aac-mp4"
+								],
+							transports:
+								[
+									"encraw"
+								]
+						};
+
+						const tsInSeconds = Math.floor(Date.now() / 1e3);
+
+						let sign = "".concat(tsInSeconds).concat(params.trackId).concat(params.quality).concat(params.codecs.join("")).concat(params.transports.join(""));
+						let cryptoKey = await crypto.subtle.importKey("raw", new TextEncoder().encode(secretKey), {
+							name: "HMAC",
+							hash: {
+								name: "SHA-256"
+							}
+						}, !0, ["sign", "verify"]);
+
+						sign = await crypto.subtle.sign("HMAC", cryptoKey, new TextEncoder().encode(sign));
+						sign = btoa(String.fromCharCode(...new Uint8Array(sign))).slice(0, -1);
+
+						let response = await fetch("https://api.music.yandex.ru/get-file-info?" + new URLSearchParams({
+							ts: tsInSeconds,
+							trackId: params.trackId,
+							quality: params.quality,
+							codecs: params.codecs,
+							transports: params.transports,
+							sign: sign
+						}), {
+							"headers": {
+								"x-yandex-music-client": "YandexMusicWebNext/1.0.0"
+							},
+							"method": "GET",
+							"credentials": "include"
+						});
+
+						const data = await response.json();
+
+						const downloadInfo = data.result.downloadInfo;
+
+						const source = downloadInfo.url;
+
+						// чтобы узнать bytesTotal можно отправить запрос "range": `bytes=0-0`
+						response = await fetch(source, {
+							"headers": {
+								"range": "bytes=0-0"
+							}
+						});
+
+						const bytesTotal = parseInt(response.headers.get("content-range").split("/")[1]);
+
+						// audioDecodingKey = window.audioDecodingKeys[source];
+						let audioDecodingKey = downloadInfo.key;
+
+						response = await fetch(source, {
+							"headers": {
+								"range": `bytes=0-${bytesTotal - 1}`
+							}
+						});
+
+						const buffer = await response.arrayBuffer();
+
+						function createCounter(e) {
+							for (var t = e, r = new Uint8Array(16), n = 0; n < 16; ++n) {
+								r[r.length - 1 - n] = 255 & t;
+								t >>= 8;
+							}
+							return r;
+						}
+
+						function parseHexString(e) {
+							var t = e.match(/.{1,2}/g);
+							return new Uint8Array(t.map(function (e) {
+								return parseInt(e, 16);
+							}
+							));
+						}
+
+						audioDecodingKey = parseHexString(audioDecodingKey);
+
+						cryptoKey = await window.crypto.subtle.importKey("raw", audioDecodingKey, {
+							name: "AES-CTR"
+						}, !1, ["decrypt"]);
+
+						const counter = createCounter(0); // начинаем с начала массива
+
+						const decodedBuffer = await window.crypto.subtle.decrypt({
+							name: "AES-CTR",
+							counter,
+							length: 128
+						}, cryptoKey, buffer);
+
+						// function downloadArray(data) {
+						// 	const link = document.createElement("a");
+						// 	link.style.display = "none";
+						// 	document.body.appendChild(link);
+
+						// 	const blob = new Blob([data], { type: "application/octet-binary" });
+						// 	const objectURL = URL.createObjectURL(blob);
+
+						// 	link.href = objectURL;
+						// 	link.href = URL.createObjectURL(blob);
+						// 	link.download = `${params.trackId}-${params.quality}.${downloadInfo.codec}`;
+						// 	link.click();
+						// }
+
+						// downloadArray(decodedBuffer);
+
+						function arrayBufferToBase64String(arrayBuffer) {
+							const uint8arr = new Uint8Array(arrayBuffer);
+							const arr = new Array(uint8arr.length);
+							for (let i = 0; i < uint8arr.length; i++) arr[i] = String.fromCharCode(uint8arr[i]);
+
+							const str = arr.join("");
+							const base64Str = btoa(str);
+
+							return base64Str;
+						}
+
+						const trackBase64String = arrayBufferToBase64String(decodedBuffer);
+
+						return {
+							trackBase64String,
+							extension: "mp3"
+						};
+					}
+
+					return downloadTrack(trackId);
+				},
+				args: [trackInfo.id]
+			});
+
+			buffer = Buffer.from(evaluateResult.trackBase64String, "base64");
+			extension = evaluateResult.extension;
+
+			if (DEBUG_FILE_CACHE_ENABLED) app.fs.writeFileSync(cacheFilePath, buffer);
+		}
+
+		trackInfo.buffer = buffer;
+		trackInfo.extension = extension;
+
+		this.logToConsoleAndToBrowserConsole(`Finish downloading track ${this.getTrackInfoText(trackInfo)}`);
+	}
+
+	async downloadCover(coverInfo) {
+		this.logToConsoleAndToBrowserConsole(`Start downloading cover ${this.getAlbumInfoText(coverInfo.entityInfo)}`);
+
+		let buffer;
+
+		const cacheFilePath = app.getUserDataPath(`${coverInfo.entityInfo.id}.cover.jpg`);
+		if (DEBUG_FILE_CACHE_ENABLED &&
+			app.fs.existsSync(cacheFilePath)) {
+			buffer = app.fs.readFileSync(cacheFilePath);
+		} else {
+			const response = await fetch(coverInfo.uri, {
+				"method": "GET"
+			});
+
+			buffer = Buffer.from(await response.arrayBuffer());
+
+			if (DEBUG_FILE_CACHE_ENABLED) app.fs.writeFileSync(cacheFilePath, buffer);
+		}
+
+		coverInfo.buffer = buffer;
+
+		this.logToConsoleAndToBrowserConsole(`Finish downloading cover ${this.getAlbumInfoText(coverInfo.entityInfo)}`);
+	}
+
+	updateTagsInTrackInfo(trackInfo, albumInfo) {
+		const tags = {
+			artist: trackInfo.artist,
+			album: albumInfo.name,
+			trackNumber: app.tools.formatTrackNumber(trackInfo.trackNumber),
+			title: trackInfo.name,
+			genre: albumInfo.genre,
+			year: albumInfo.year,
+			image: albumInfo.cover.buffer
+		};
+
+		if (albumInfo.isCompilation) tags.compilation = "1";
+
+		trackInfo.buffer = NodeID3.write(tags, trackInfo.buffer);
+	}
+
+	async runAutomationDownloadAlbums(albumUrls) {
+		for (const albumUrl of albumUrls) {
+			const albumId = albumUrl.split("/").filter(Boolean).at(-1);
+
+			await app.browserManager.page.navigate(albumUrl);
+
+			await waitForSelector({
+				page: app.browserManager.page,
+				selector: "[class*=CommonAlbumPage]"
+			});
+
+			await waitForSelector({
+				page: app.browserManager.page,
+				selector: "[class*=CommonTrack_root]"
+			});
+
+			const albumInfo = await this.getAlbumInfoWithTrackInfos(albumId);
+			// app.tools.json.save(app.getUserDataPath("albumInfo.json"), albumInfo);
+
+			await this.downloadCover(albumInfo.cover);
+			// app.fs.writeFileSync(app.getUserDataPath("cover.jpg"), albumInfo.cover.buffer);
+
+			for (const trackInfo of albumInfo.trackInfos) {
+				await this.downloadTrack(trackInfo);
+				this.updateTagsInTrackInfo(trackInfo, albumInfo);
+				// app.fs.writeFileSync(app.getUserDataPath("track.mp3"), trackInfo.buffer);
+			}
+
+			await app.uploadManager.uploadAlbum(albumInfo);
+		}
+	}
+};
+
+class YandexMusicBrowserManager extends YandexMusicBrowserInterfaceSpring2025Manager { }
+
+module.exports = YandexMusicBrowserManager;

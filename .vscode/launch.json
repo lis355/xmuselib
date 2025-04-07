@@ -34,8 +34,13 @@
 				"<node_internals>/**"
 			],
 			"program": "${workspaceFolder}/main.js",
+			"env": {
+				"DEBUG_FILE_CACHE_ENABLED": "false"
+			},
 			"args": [
-				"yandex"
+				"yandex",
+				// "--auto",
+				// "https://music.yandex.ru/album/$ID"
 			]
 		}
 	]

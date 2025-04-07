@@ -4,6 +4,7 @@ const ACRONYMS = {
 	"lp": "LP",
 	"feat.": "feat.",
 	"prod.": "prod.",
+	"vs.": "vs.",
 	"vs": "vs"
 };
 

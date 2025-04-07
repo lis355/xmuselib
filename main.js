@@ -71,11 +71,13 @@ ndapp({
 	},
 	tools: {
 		urljoin: require("url-join"),
+
 		filenamify: require("./tools/filenamify"),
 		formatTrackNumber: require("./tools/formatTrackNumber"),
 		getFileInfosFromDirectory: require("./tools/getFileInfosFromDirectory"),
 		hash: require("./tools/hash"),
-		nameCase: require("./tools/nameCase")
+		nameCase: require("./tools/nameCase"),
+		openDirectoryInExplorer: require("./tools/openDirectoryInExplorer")
 	},
 	specials: {
 		name: ndapp.libs._.last(packageInfo.name.split("/")),
