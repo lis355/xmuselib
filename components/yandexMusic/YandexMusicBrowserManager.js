@@ -5,8 +5,11 @@ const sharp = require("sharp");
 const NodeID3 = require("../../libraries/node-id3");
 const {
 	click,
+	hasSelector,
 	waitForSelector
 } = require("./pageUtils");
+
+/* //////////////////// OldInterfaceBefore2025 //////////////////// */
 
 // eslint-disable-next-line no-unused-vars
 class YandexMusicBrowserOldManager extends ndapp.ApplicationComponent {
@@ -335,6 +338,38 @@ class YandexMusicBrowserOldManager extends ndapp.ApplicationComponent {
 	}
 };
 
+/* //////////////////// InterfaceSpring2025 //////////////////// */
+
+// для service worker
+// window.addEventListener("message", e => {
+// 	if (e &&
+// 		e.data &&
+// 		e.data.method === "configureSource" &&
+// 		e.data.params &&
+// 		e.data.params.config &&
+// 		e.data.params.config.audioDecodingKey) {
+// 		window.audioDecodingKeys = window.audioDecodingKeys || {};
+// 		window.audioDecodingKeys[e.data.params.source] = e.data.params.config.audioDecodingKey;
+// 		console.log(e.data.params.source, e.data.params.config.audioDecodingKey);
+// 	}
+// });
+
+// audioDecodingKey = window.audioDecodingKeys[source];
+
+// function downloadArray(data) {
+// 	const link = document.createElement("a");
+// 	link.style.display = "none";
+// 	document.body.appendChild(link);
+
+// 	const blob = new Blob([data], { type: "application/octet-binary" });
+// 	const objectURL = URL.createObjectURL(blob);
+
+// 	link.href = objectURL;
+// 	link.href = URL.createObjectURL(blob);
+// 	link.download = `${params.trackId}-${params.quality}.${downloadInfo.codec}`;
+// 	link.click();
+// }
+
 class CoverInfo {
 	constructor(raw, entityInfo) {
 		this.raw = raw;
@@ -414,6 +449,13 @@ class YandexMusicBrowserInterfaceSpring2025Manager extends ndapp.ApplicationComp
 		});
 	}
 
+	async isLogined() {
+		return hasSelector({
+			page: app.browserManager.page,
+			selector: "button.UserID-Account"
+		});
+	}
+
 	async getAlbumInfoWithTrackInfos(albumId) {
 		const rawAlbumData = await app.browserManager.page.evaluateInFrame({
 			frame: app.browserManager.page.mainFrame,
@@ -452,24 +494,12 @@ class YandexMusicBrowserInterfaceSpring2025Manager extends ndapp.ApplicationComp
 				frame: app.browserManager.page.mainFrame,
 				func: async trackId => {
 					async function downloadTrack(trackId) {
-						// для service worker
-						// window.addEventListener("message", e => {
-						// 	if (e &&
-						// 		e.data &&
-						// 		e.data.method === "configureSource" &&
-						// 		e.data.params &&
-						// 		e.data.params.config &&
-						// 		e.data.params.config.audioDecodingKey) {
-						// 		window.audioDecodingKeys = window.audioDecodingKeys || {};
-						// 		window.audioDecodingKeys[e.data.params.source] = e.data.params.config.audioDecodingKey;
-						// 		console.log(e.data.params.source, e.data.params.config.audioDecodingKey);
-						// 	}
-						// });
+						// NOTE нашел в исходниках yasp (yandex music player frontend web)
+						// был просто захардкожен, но может меняться со временем - не известно
+						// file:s3/music-frontend-static/music/v4.749.2/_next/static/2958-3f1cc5e70e934ab7.js
+						const secretKey = "7tvSmFbyf5hJnIHhCimDDD";
 
 						const quality = "nq"; // lq nq lossless
-
-						// TODO check changing
-						const secretKey = "7tvSmFbyf5hJnIHhCimDDD";
 
 						const params = {
 							trackId,
@@ -493,12 +523,18 @@ class YandexMusicBrowserInterfaceSpring2025Manager extends ndapp.ApplicationComp
 						const tsInSeconds = Math.floor(Date.now() / 1e3);
 
 						let sign = "".concat(tsInSeconds).concat(params.trackId).concat(params.quality).concat(params.codecs.join("")).concat(params.transports.join(""));
-						let cryptoKey = await crypto.subtle.importKey("raw", new TextEncoder().encode(secretKey), {
-							name: "HMAC",
-							hash: {
-								name: "SHA-256"
-							}
-						}, !0, ["sign", "verify"]);
+						let cryptoKey = await crypto.subtle.importKey(
+							"raw",
+							new TextEncoder().encode(secretKey),
+							{
+								name: "HMAC",
+								hash: {
+									name: "SHA-256"
+								}
+							},
+							true,
+							["sign", "verify"]
+						);
 
 						sign = await crypto.subtle.sign("HMAC", cryptoKey, new TextEncoder().encode(sign));
 						sign = btoa(String.fromCharCode(...new Uint8Array(sign))).slice(0, -1);
@@ -533,7 +569,6 @@ class YandexMusicBrowserInterfaceSpring2025Manager extends ndapp.ApplicationComp
 
 						const bytesTotal = parseInt(response.headers.get("content-range").split("/")[1]);
 
-						// audioDecodingKey = window.audioDecodingKeys[source];
 						let audioDecodingKey = downloadInfo.key;
 
 						response = await fetch(source, {
@@ -545,26 +580,30 @@ class YandexMusicBrowserInterfaceSpring2025Manager extends ndapp.ApplicationComp
 						const buffer = await response.arrayBuffer();
 
 						function createCounter(e) {
-							for (var t = e, r = new Uint8Array(16), n = 0; n < 16; ++n) {
+							const r = new Uint8Array(16);
+							for (let t = e, n = 0; n < 16; ++n) {
 								r[r.length - 1 - n] = 255 & t;
 								t >>= 8;
 							}
+
 							return r;
 						}
 
 						function parseHexString(e) {
-							var t = e.match(/.{1,2}/g);
-							return new Uint8Array(t.map(function (e) {
-								return parseInt(e, 16);
-							}
-							));
+							return new Uint8Array(e.match(/.{1,2}/g).map(x => parseInt(e, 16)));
 						}
 
 						audioDecodingKey = parseHexString(audioDecodingKey);
 
-						cryptoKey = await window.crypto.subtle.importKey("raw", audioDecodingKey, {
-							name: "AES-CTR"
-						}, !1, ["decrypt"]);
+						cryptoKey = await window.crypto.subtle.importKey(
+							"raw",
+							audioDecodingKey,
+							{
+								name: "AES-CTR"
+							},
+							false,
+							["decrypt"]
+						);
 
 						const counter = createCounter(0); // начинаем с начала массива
 
@@ -573,22 +612,6 @@ class YandexMusicBrowserInterfaceSpring2025Manager extends ndapp.ApplicationComp
 							counter,
 							length: 128
 						}, cryptoKey, buffer);
-
-						// function downloadArray(data) {
-						// 	const link = document.createElement("a");
-						// 	link.style.display = "none";
-						// 	document.body.appendChild(link);
-
-						// 	const blob = new Blob([data], { type: "application/octet-binary" });
-						// 	const objectURL = URL.createObjectURL(blob);
-
-						// 	link.href = objectURL;
-						// 	link.href = URL.createObjectURL(blob);
-						// 	link.download = `${params.trackId}-${params.quality}.${downloadInfo.codec}`;
-						// 	link.click();
-						// }
-
-						// downloadArray(decodedBuffer);
 
 						function arrayBufferToBase64String(arrayBuffer) {
 							const uint8arr = new Uint8Array(arrayBuffer);
@@ -667,20 +690,17 @@ class YandexMusicBrowserInterfaceSpring2025Manager extends ndapp.ApplicationComp
 	}
 
 	async runAutomationDownloadAlbums(albumUrls) {
+		await app.browserManager.page.navigate("https://music.yandex.ru/");
+
+		await waitForSelector({
+			page: app.browserManager.page,
+			selector: "[class*=NavbarDesktop_logoWrapper]"
+		});
+
+		if (!await this.isLogined()) throw new Error("Not logined");
+
 		for (const albumUrl of albumUrls) {
-			const albumId = albumUrl.split("/").filter(Boolean).at(-1);
-
-			await app.browserManager.page.navigate(albumUrl);
-
-			await waitForSelector({
-				page: app.browserManager.page,
-				selector: "[class*=CommonAlbumPage]"
-			});
-
-			await waitForSelector({
-				page: app.browserManager.page,
-				selector: "[class*=CommonTrack_root]"
-			});
+			const albumId = new URL(albumUrl).pathname.split("/").filter(Boolean).at(-1);
 
 			const albumInfo = await this.getAlbumInfoWithTrackInfos(albumId);
 			// app.tools.json.save(app.getUserDataPath("albumInfo.json"), albumInfo);

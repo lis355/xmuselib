@@ -8,10 +8,10 @@ const ACRONYMS = {
 	"vs": "vs"
 };
 
-// function isLetter(s) {
-// 	return s.length === 1 &&
-// 		s.toLowerCase() !== s.toUpperCase();
-// }
+function isLetter(s) {
+	return s.length === 1 &&
+		s.toLowerCase() !== s.toUpperCase();
+}
 
 function isDigit(s) {
 	return s.length === 1 &&
@@ -46,30 +46,33 @@ function isNumeralCounter(s) {
 		s === "й";
 }
 
+const SYMBOLS_BREAK_WORDS = ["-"];
+const SUMBOL_WHITE_SPACE = " ";
+
 function splitToWordsWithSymbols(s) {
 	const words = [];
 	let word = "";
 
 	for (let i = 0; i < s.length; i++) {
-		let c = s[i];
-		const cIsWhiteSpace = isWhiteSpace(c);
+		let symbol = s[i];
+		const symbolIsWhiteSpace = isWhiteSpace(symbol);
 
-		if (cIsWhiteSpace ||
-			c === "-") {
+		if (symbolIsWhiteSpace ||
+			SYMBOLS_BREAK_WORDS.includes(symbol)) {
 			if (word) {
 				words.push(word);
 				word = "";
 			}
 
-			if (cIsWhiteSpace &&
+			if (symbolIsWhiteSpace &&
 				words.length > 0 &&
 				isWhiteSpace(words[words.length - 1])) continue;
 
-			if (cIsWhiteSpace) c = " ";
+			if (symbolIsWhiteSpace) symbol = SUMBOL_WHITE_SPACE;
 
-			words.push(c);
+			words.push(symbol);
 		} else {
-			word += c;
+			word += symbol;
 		}
 	}
 
@@ -81,11 +84,37 @@ function splitToWordsWithSymbols(s) {
 	return words;
 }
 
+function capitalize(s) {
+	let result = "";
+	let first = true;
+
+	for (let i = 0; i < s.length; i++) {
+		let symbol = s[i];
+		if (isLetter(symbol)) {
+			if (first) {
+				first = false;
+
+				symbol = symbol.toUpperCase();
+			} else {
+				symbol = symbol.toLowerCase();
+			}
+		}
+
+		result += symbol;
+	}
+
+	return result;
+}
+
 function nameCase(s, options = null) {
 	const exceptions = app.libs._.get(options, "exceptions", []);
 	if (exceptions.includes(s)) return s;
 
 	// иногда в названии люди любят писать все или в нижнем или в верхнем регистре
+	// если все в верхнем регистре или все в нижнем регистре - все оставляем в этом регистре
+
+	// если регистр намешан, то мы капитализируем все слова, кроме слов, которые полностью в верхнем регистре
+
 	const upperCase = s === s.toUpperCase();
 	const lowerCase = s === s.toLowerCase();
 
@@ -93,39 +122,24 @@ function nameCase(s, options = null) {
 
 	for (let i = 0; i < words.length; i++) {
 		let word = words[i];
-		let bracket;
-		let bracketLeft;
-		let bracketRight;
-		if (word[0] === "(") {
-			bracket = "(";
-			bracketLeft = true;
-			word = word.substring(1);
-		} else if (word[0] === "[") {
-			bracket = "[";
-			bracketLeft = true;
-			word = word.substring(1);
-		} else if (word[word.length - 1] === ")") {
-			bracket = ")";
-			bracketRight = true;
-			word = word.substring(0, word.length - 1);
-		} else if (word[word.length - 1] === "]") {
-			bracket = "]";
-			bracketRight = true;
-			word = word.substring(0, word.length - 1);
-		}
+		const wordUpperCase = word.toUpperCase();
+		const wordLowerCase = word.toLowerCase();
 
-		if (upperCase) word = word.toUpperCase();
-		else if (lowerCase) word = word.toLowerCase();
-		else if (ACRONYMS[word.toLowerCase()]) word = ACRONYMS[word.toLowerCase()];
-		else if (!isNumeralCounter(word)) word = app.libs._.capitalize(word);
-
-		if (bracketLeft) word = bracket + word;
-		if (bracketRight) word = word + bracket;
+		if (words.length > 1 &&
+			upperCase) word = wordUpperCase;
+		else if (words.length > 1 &&
+			lowerCase) word = wordLowerCase;
+		else if (ACRONYMS[wordLowerCase]) word = ACRONYMS[wordLowerCase];
+		else if (isNumeralCounter(wordLowerCase)) word = wordLowerCase;
+		else if (word === wordUpperCase) word = wordUpperCase;
+		else word = capitalize(word);
 
 		words[i] = word;
 	}
 
-	return words.join("");
+	s = words.join("");
+
+	return s;
 };
 
 module.exports = nameCase;

@@ -14,6 +14,8 @@ test("nameCase", () => {
 			expect(app.tools.nameCase("Деревянные\t\nкиты")).toEqual("Деревянные Киты");
 			expect(app.tools.nameCase("деревянные киты")).toEqual("деревянные киты");
 			expect(app.tools.nameCase("ДЕРЕВЯННЫЕ КИТЫ")).toEqual("ДЕРЕВЯННЫЕ КИТЫ");
+			expect(app.tools.nameCase("деревянные КИТЫ")).toEqual("Деревянные КИТЫ");
+			expect(app.tools.nameCase("Деревянные КИТЫ")).toEqual("Деревянные КИТЫ");
 		}
 	});
 });
