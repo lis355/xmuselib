@@ -12,7 +12,7 @@
 		"test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
 	},
 	"dependencies": {
-		"@lis355/sider": "^1.1.0",
+		"@lis355/sider": "^1.2.0",
 		"basic-ftp": "^5.0.3",
 		"commander": "^10.0.0",
 		"filenamify": "^4.2.0",
