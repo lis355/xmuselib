@@ -594,7 +594,7 @@ class YandexMusicBrowserInterfaceSpring2025Manager extends ndapp.ApplicationComp
 						}
 
 						function parseHexString(e) {
-							return new Uint8Array(e.match(/.{1,2}/g).map(x => parseInt(e, 16)));
+							return new Uint8Array(e.match(/.{1,2}/g).map(x => parseInt(x, 16)));
 						}
 
 						audioDecodingKey = parseHexString(audioDecodingKey);
