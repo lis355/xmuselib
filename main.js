@@ -4,6 +4,8 @@ const ndapp = require("ndapp");
 
 const packageInfo = require("./package.json");
 
+const DEVELOPER_ENVIRONMENT = process.env.DEVELOPER_ENVIRONMENT === "true";
+
 const CONFIG = {
 	acronyms: [],
 	upload: [
@@ -54,6 +56,15 @@ class AppManager extends ndapp.Application {
 
 	async run() {
 		await super.run();
+
+		if (app.constants.DEVELOPER_ENVIRONMENT) {
+			try {
+				const onRunFilePath = app.path.resolve(__dirname, "onRun.js");
+				if (app.fs.existsSync(onRunFilePath)) await (require(onRunFilePath))();
+			} catch (error) {
+				console.error(error);
+			}
+		}
 	}
 }
 
@@ -68,6 +79,9 @@ ndapp({
 	],
 	enums: {
 		UPLOADER_TYPES: require("./constants/uploaderTypes")
+	},
+	constants: {
+		DEVELOPER_ENVIRONMENT
 	},
 	tools: {
 		urljoin: require("url-join"),

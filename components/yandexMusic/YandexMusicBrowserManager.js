@@ -9,6 +9,10 @@ const {
 	waitForSelector
 } = require("./pageUtils");
 
+function formatSize(bytesAmount) {
+	return (bytesAmount / 1024 ** 2).toFixed(2) + " Mb";
+}
+
 /* //////////////////// OldInterfaceBefore2025 //////////////////// */
 
 // eslint-disable-next-line no-unused-vars
@@ -646,7 +650,7 @@ class YandexMusicBrowserInterfaceSpring2025Manager extends ndapp.ApplicationComp
 		trackInfo.buffer = buffer;
 		trackInfo.extension = extension;
 
-		this.logToConsoleAndToBrowserConsole(`Finish downloading track ${this.getTrackInfoText(trackInfo)}`);
+		this.logToConsoleAndToBrowserConsole(`Finish downloading track ${this.getTrackInfoText(trackInfo)}, ${formatSize(buffer.byteLength)}`);
 	}
 
 	async downloadCover(coverInfo) {
@@ -670,7 +674,7 @@ class YandexMusicBrowserInterfaceSpring2025Manager extends ndapp.ApplicationComp
 
 		coverInfo.buffer = buffer;
 
-		this.logToConsoleAndToBrowserConsole(`Finish downloading cover ${this.getAlbumInfoText(coverInfo.entityInfo)}`);
+		this.logToConsoleAndToBrowserConsole(`Finish downloading cover ${this.getAlbumInfoText(coverInfo.entityInfo)}, ${formatSize(buffer.byteLength)}`);
 	}
 
 	updateTagsInTrackInfo(trackInfo, albumInfo) {
@@ -692,6 +696,8 @@ class YandexMusicBrowserInterfaceSpring2025Manager extends ndapp.ApplicationComp
 	async runAutomationDownloadAlbums(albumUrls) {
 		await app.browserManager.page.navigate("https://music.yandex.ru/");
 
+		await app.tools.delay(3000);
+
 		await waitForSelector({
 			page: app.browserManager.page,
 			selector: "[class*=NavbarDesktop_logoWrapper]"
@@ -705,14 +711,14 @@ class YandexMusicBrowserInterfaceSpring2025Manager extends ndapp.ApplicationComp
 			const albumInfo = await this.getAlbumInfoWithTrackInfos(albumId);
 			// app.tools.json.save(app.getUserDataPath("albumInfo.json"), albumInfo);
 
-			await this.downloadCover(albumInfo.cover);
-			// app.fs.writeFileSync(app.getUserDataPath("cover.jpg"), albumInfo.cover.buffer);
-
 			for (const trackInfo of albumInfo.trackInfos) {
 				await this.downloadTrack(trackInfo);
 				this.updateTagsInTrackInfo(trackInfo, albumInfo);
 				// app.fs.writeFileSync(app.getUserDataPath("track.mp3"), trackInfo.buffer);
 			}
+
+			await this.downloadCover(albumInfo.cover);
+			// app.fs.writeFileSync(app.getUserDataPath("cover.jpg"), albumInfo.cover.buffer);
 
 			await app.uploadManager.uploadAlbum(albumInfo);
 		}

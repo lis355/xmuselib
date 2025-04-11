@@ -31,6 +31,11 @@ module.exports = class CliCommandsManager extends ndapp.ApplicationComponent {
 			.option("--auto")
 			.action(this.yandexCommand.bind(this));
 
+		// чтобы не закрывалось в разработке
+		if (app.constants.DEVELOPER_ENVIRONMENT) {
+			program.action(() => { });
+		}
+
 		program.parse();
 	}
 
