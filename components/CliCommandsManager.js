@@ -1,7 +1,5 @@
 const { Command } = require("commander");
 
-const YandexMusicAlbumDownloadAutomation = require("./yandexMusic/YandexMusicAlbumDownloadAutomation");
-
 module.exports = class CliCommandsManager extends ndapp.ApplicationComponent {
 	async initialize() {
 		await super.initialize();
@@ -28,8 +26,12 @@ module.exports = class CliCommandsManager extends ndapp.ApplicationComponent {
 		program.command("yandex")
 			.description("Run browser to download music from Yandex.Music")
 			.argument("[albums]", "Yandex.Music album urls or IDs (comma separated)")
-			.option("--auto")
 			.action(this.yandexCommand.bind(this));
+
+		program.command("bandcamp")
+			.description("Run browser to download music from Bandcamp")
+			.argument("[albums]", "Bandcamp album urls (comma separated)")
+			.action(this.bandcampCommand.bind(this));
 
 		// чтобы не закрывалось в разработке
 		if (app.constants.DEVELOPER_ENVIRONMENT) {
@@ -48,7 +50,10 @@ module.exports = class CliCommandsManager extends ndapp.ApplicationComponent {
 	}
 
 	async yandexCommand(albums, options) {
-		const automation = new YandexMusicAlbumDownloadAutomation({ albums, auto: options.auto });
-		await automation.run();
+		await app.yandexMusicDownloadManager.runAutomationDownloadAlbumsAndQuit({ albums });
+	}
+
+	async bandcampCommand(albums, options) {
+		await app.bandcampDownloadManager.runAutomationDownloadAlbumsAndQuit({ albums });
 	}
 };

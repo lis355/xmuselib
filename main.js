@@ -71,11 +71,13 @@ class AppManager extends ndapp.Application {
 ndapp({
 	app: new AppManager(),
 	components: [
-		() => new (require("./components/BrowserManager"))(),
+		() => new (require("./components/LogsManager"))(),
 		() => new (require("./components/CliCommandsManager"))(),
 		() => new (require("./components/LibraryManager"))(),
 		() => new (require("./components/UploadManager"))(),
-		() => new (require("./components/yandexMusic/YandexMusicBrowserManager"))()
+		() => new (require("./components/browser/BrowserManager"))(),
+		() => new (require("./components/yandexMusic/YandexMusicDownloadManager"))(),
+		() => new (require("./components/bandcamp/BandcampDownloadManager"))()
 	],
 	enums: {
 		UPLOADER_TYPES: require("./constants/uploaderTypes")
