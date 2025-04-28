@@ -387,7 +387,7 @@ class YandexTrackInfo extends TrackInfo {
 
 		this.id = this.raw.id;
 
-		this.artist = app.tools.nameCase(app.libs._.first(this.raw.artists).name);
+		this.artist = albumInfo.artist;
 
 		this.name = app.tools.nameCase(this.raw.title);
 		if (this.raw.artists.length > 1) this.name += ` (feat. ${this.raw.artists.slice(1).map(artistInfo => app.tools.nameCase(artistInfo.name)).join(", ")})`;
@@ -408,8 +408,14 @@ class YandexAlbumInfo extends AlbumInfo {
 
 		this.cover = new YandexCoverInfo(raw, this);
 
-		this.artist = this.raw.artists.map(artist => app.tools.nameCase(artist.name)).join(", ");
-		this.name = app.tools.nameCase(this.raw.title);
+		if (this.raw.type === "podcast") {
+			this.artist = app.tools.nameCase(this.raw.title);
+			this.name = this.artist;
+		} else {
+			this.artist = this.raw.artists.map(artist => app.tools.nameCase(artist.name)).join(", ");
+			this.name = app.tools.nameCase(this.raw.title);
+		}
+
 		this.genre = app.tools.nameCase(this.raw.genre);
 		this.year = this.raw.year;
 		this.isCompilation = this.raw.type === "compilation";
