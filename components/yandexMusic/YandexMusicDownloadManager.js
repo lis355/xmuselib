@@ -658,18 +658,7 @@ class YandexMusicDownloaderInterfaceSpring2025Manager extends ndapp.ApplicationC
 		app.logsManager.log(`Finish downloading cover ${getAlbumInfoText(coverInfo.entityInfo)}, ${formatSize(buffer.byteLength)}`);
 	}
 
-	async runAutomationDownloadAlbumsAndQuit(options) {
-		const albumUrls = app.libs._.get(options, "albums")
-			.split(",")
-			.map(albumUrl => {
-				albumUrl = albumUrl.trim();
-
-				if (Number.isFinite(Number(albumUrl))) return `https://music.yandex.ru/album/${albumUrl}`;
-				if (albumUrl.startsWith("https://music.yandex.ru/album/")) return albumUrl;
-
-				throw new Error(`Invalid album url ${albumUrl}`);
-			});
-
+	async downloadAlbums(options) {
 		await app.browserManager.openBrowser();
 
 		await app.browserManager.page.navigate("https://music.yandex.ru/");
@@ -683,8 +672,8 @@ class YandexMusicDownloaderInterfaceSpring2025Manager extends ndapp.ApplicationC
 
 		if (!await this.isLogined()) throw new Error("Not logined");
 
-		for (const albumUrl of albumUrls) {
-			const albumId = new URL(albumUrl).pathname.split("/").filter(Boolean).at(-1);
+		for (const albumUrl of options.urls) {
+			const albumId = albumUrl.pathname.split("/").filter(Boolean).at(-1);
 
 			const albumInfo = await this.getAlbumInfoWithTrackInfos(albumId);
 			// app.tools.json.save(app.getUserDataPath("albumInfo.json"), albumInfo);
@@ -700,8 +689,6 @@ class YandexMusicDownloaderInterfaceSpring2025Manager extends ndapp.ApplicationC
 
 			await app.uploadManager.uploadAlbum(albumInfo);
 		}
-
-		app.quit();
 	}
 };
 

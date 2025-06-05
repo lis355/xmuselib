@@ -3,24 +3,10 @@
 const ndapp = require("ndapp");
 
 const packageInfo = require("./package.json");
+const config = require("./config");
+const { path } = require("filenamify");
 
 const DEVELOPER_ENVIRONMENT = process.env.DEVELOPER_ENVIRONMENT === "true";
-
-const CONFIG = {
-	acronyms: [],
-	upload: [
-		// {
-		// 	type: "fs",
-		// 	root: ROOT_FOLDER
-		// },
-		// {
-		// 	type: "ftp",
-		// 	host: "HOST",
-		// 	port: PORT,
-		// 	root: "/ROOT_FOLDER"
-		// }
-	]
-};
 
 class AppManager extends ndapp.Application {
 	constructor() {
@@ -35,22 +21,25 @@ class AppManager extends ndapp.Application {
 	}
 
 	getUserDataPath(...paths) {
-		return app.path.resolve(__dirname, "userData", ...paths);
+		return app.path.resolve(this.dataDirectory, "userData", ...paths);
 	}
 
 	async initialize() {
+		this.dataDirectory = app.path.resolve(process.env.APPDATA, packageInfo.name);
+		app.fs.ensureDirectory(this.dataDirectory);
+
 		this.loadConfig();
 
 		await super.initialize();
 	}
 
 	loadConfig() {
-		app.configPath = app.path.resolve(__dirname, "config.js");
-		app.config = CONFIG;
+		app.configPath = app.path.resolve(this.dataDirectory, "config.json");
 
 		try {
-			app.libs._.merge(app.config, require(app.configPath));
+			app.config = app.libs._.merge(config, app.tools.json.load(app.configPath));
 		} catch (_) {
+			app.log.error(`Erron in config file at ${app.configPath}`);
 		}
 	}
 

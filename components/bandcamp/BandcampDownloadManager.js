@@ -63,15 +63,15 @@ module.exports = class BandcampDownloadManager extends ndapp.ApplicationComponen
 	async getAlbumInfoWithTrackInfos(albumUrl) {
 		app.logsManager.log(`Start fetch album information ${albumUrl}`);
 
-		const response = await fetch(albumUrl);
+		const response = await fetch(albumUrl.href);
 		const responseBuffer = Buffer.from(await response.arrayBuffer());
 
 		const html = responseBuffer.toString();
 
 		// NOTE very long loading library
-		const jsdom = require("jsdom");
+		if (!this.jsdom) this.jsdom = require("jsdom");
 
-		const dom = new jsdom.JSDOM(html);
+		const dom = this.jsdom.JSDOM(html);
 		const albumData = app.libs._.first(
 			Array.from(dom.window.document.head.children)
 				.filter(element => element.type === "text/javascript")
@@ -166,11 +166,8 @@ module.exports = class BandcampDownloadManager extends ndapp.ApplicationComponen
 		app.logsManager.log(`Finish downloading cover ${getAlbumInfoText(coverInfo.entityInfo)}, ${formatSize(imageBuffer.byteLength)}`);
 	}
 
-	async runAutomationDownloadAlbumsAndQuit(options) {
-		const albumUrls = app.libs._.get(options, "albums")
-			.split(",");
-
-		for (const albumUrl of albumUrls) {
+	async downloadAlbums(options) {
+		for (const albumUrl of options.urls) {
 			const albumInfo = await this.getAlbumInfoWithTrackInfos(albumUrl);
 			if (!albumInfo) throw new Error(`Invalid album url ${albumUrl}`);
 			// app.tools.json.save(app.getUserDataPath("albumInfo.json"), albumInfo);
@@ -186,7 +183,5 @@ module.exports = class BandcampDownloadManager extends ndapp.ApplicationComponen
 
 			await app.uploadManager.uploadAlbum(albumInfo);
 		}
-
-		app.quit();
 	}
 };

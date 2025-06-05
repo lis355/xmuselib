@@ -30,7 +30,7 @@
 			]
 		},
 		{
-			"name": "cmd yandex",
+			"name": "cmd download",
 			"type": "node",
 			"request": "launch",
 			"skipFiles": [
@@ -41,24 +41,11 @@
 				"DEBUG_FILE_CACHE_ENABLED": "false"
 			},
 			"args": [
-				"yandex",
+				"download",
 				// "https://music.yandex.ru/album/$ID"
-			]
-		},
-		{
-			"name": "cmd bandcamp",
-			"type": "node",
-			"request": "launch",
-			"skipFiles": [
-				"<node_internals>/**"
-			],
-			"program": "${workspaceFolder}/main.js",
-			"env": {
-				"DEBUG_FILE_CACHE_ENABLED": "false"
-			},
-			"args": [
-				"bandcamp",
 				// "https://***.bandcamp.com/album/***"
+				"https://lartsov.bandcamp.com/album/5,  https://music.yandex.ru/album/36517385",
+				"https://music.yandex.ru/album/36517385"
 			]
 		}
 	]

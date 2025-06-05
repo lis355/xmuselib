@@ -1,5 +1,7 @@
 const { Readable } = require("node:stream");
 
+const byteSize = require("byte-size");
+const cliProgress = require("cli-progress");
 const ftp = require("basic-ftp");
 
 const LibraryManager = require("./LibraryManager");
@@ -96,11 +98,24 @@ class FtpNetUploader extends FsUploader {
 		async function uploadFile(sourceBuffer, destinationFilePath) {
 			const fileSize = sourceBuffer.length;
 
-			client.trackProgress(info => {
-				app.log.info(`${info.name} ${app.libs._.round(info.bytes / fileSize * 100, 2).toFixed(2)}% [${info.bytes}/${fileSize}]`);
+			const progressBar = new cliProgress.SingleBar({
+				hideCursor: true,
+				barCompleteChar: "\u2588",
+				barIncompleteChar: "\u2591",
+				barsize: 80,
+				formatValue: value => byteSize(value),
+				format: (options, params, payload) => `${cliProgress.Format.BarFormat(params.progress, options)}| ${(params.progress * 100).toFixed(2).padStart(6, "0")}% | ${options.formatValue(params.value)} / ${options.formatValue(params.total)}`
 			});
 
+			client.trackProgress(info => {
+				progressBar.update(info.bytes, {});
+			});
+
+			progressBar.start(fileSize, 0);
+
 			await client.uploadFrom(Readable.from(sourceBuffer), destinationFilePath);
+
+			progressBar.stop();
 		}
 
 		const coverFilePath = this.getCoverDestinationFilePath(albumDestinationFolder);
@@ -131,7 +146,7 @@ module.exports = class UploadManager extends ndapp.ApplicationComponent {
 	}
 
 	createUploaders() {
-		this.uploaders = app.config.upload.mapToObject(uploaderInfo => {
+		this.uploaders = app.config.uploaders.mapToObject(uploaderInfo => {
 			const uploaderInfoType = uploaderInfo.type;
 			let uploader;
 
