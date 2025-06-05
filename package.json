@@ -1,14 +1,12 @@
 {
 	"name": "@lis355/xmuselib",
-	"version": "2.0.0",
+	"version": "3.0.0",
 	"license": "MIT",
 	"homepage": "https://github.com/lis355/xmuselib",
 	"bin": {
 		"xmuselib": "./main.js"
 	},
 	"scripts": {
-		"xmuselib-cli-install": "npm link",
-		"xmuselib-cli-uninstall": "npm --global uninstall @lis355/xmuselib",
 		"test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
 	},
 	"dependencies": {
@@ -17,6 +15,7 @@
 		"byte-size": "^9.0.1",
 		"cli-progress": "^3.12.0",
 		"commander": "^10.0.0",
+		"figlet": "^1.8.1",
 		"filenamify": "^4.2.0",
 		"jsdom": "^26.1.0",
 		"ndapp": "^1.0.17",

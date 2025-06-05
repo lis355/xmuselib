@@ -1,4 +1,5 @@
 const { Command } = require("commander");
+const figlet = require("figlet");
 
 const { MUSIC_SERVICE_TYPES } = app.enums;
 
@@ -10,12 +11,24 @@ module.exports = class CliCommandsManager extends ndapp.ApplicationComponent {
 	async run() {
 		await super.run();
 
+		let logo = await figlet.text(app.name, {
+			font: "ANSI Shadow"
+		});
+
+		logo = logo.split("\n").filter(s => Boolean(s.trim())).join(app.os.EOL);
+
+		console.log(logo);
+		console.log(`v ${app.version}`);
+		console.log(`[userData] located at ${app.getUserDataPath()}`);
+		console.log(`[config] located at ${app.configPath}`);
+		console.log();
+
 		const program = new Command();
 
 		program
 			.name(app.name)
 			.version(app.version)
-			.description(`Application to download and store music in strong hierarchy, [userData] located at ${app.getUserDataPath()}, [config] located at ${app.configPath}`);
+			.description("Application to download and store music in strong hierarchy");
 
 		program.command("config")
 			.description("Open config for manual editing")

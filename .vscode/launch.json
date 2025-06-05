@@ -44,9 +44,16 @@
 				"download",
 				// "https://music.yandex.ru/album/$ID"
 				// "https://***.bandcamp.com/album/***"
-				"https://lartsov.bandcamp.com/album/5,  https://music.yandex.ru/album/36517385",
-				"https://music.yandex.ru/album/36517385"
 			]
+		},
+		{
+			"name": "scripts/createGlobalBatFileStartScript",
+			"type": "node",
+			"request": "launch",
+			"skipFiles": [
+				"<node_internals>/**"
+			],
+			"program": "${workspaceFolder}/scripts/createGlobalBatFileStartScript.js"
 		}
 	]
 }

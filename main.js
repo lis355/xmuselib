@@ -1,12 +1,12 @@
-#!/usr/bin/env node
-
 const ndapp = require("ndapp");
 
-const packageInfo = require("./package.json");
 const config = require("./config");
-const { path } = require("filenamify");
+const packageInfo = require("./package.json");
 
 const DEVELOPER_ENVIRONMENT = process.env.DEVELOPER_ENVIRONMENT === "true";
+
+const name = ndapp.libs._.last(packageInfo.name.split("/"));
+const version = packageInfo.version;
 
 class AppManager extends ndapp.Application {
 	constructor() {
@@ -25,8 +25,8 @@ class AppManager extends ndapp.Application {
 	}
 
 	async initialize() {
-		this.dataDirectory = app.path.resolve(process.env.APPDATA, packageInfo.name);
-		app.fs.ensureDirectory(this.dataDirectory);
+		this.dataDirectory = app.path.resolve(process.env.APPDATA, name);
+		app.fs.ensureDirSync(this.dataDirectory);
 
 		this.loadConfig();
 
@@ -36,10 +36,20 @@ class AppManager extends ndapp.Application {
 	loadConfig() {
 		app.configPath = app.path.resolve(this.dataDirectory, "config.json");
 
+		let loaded = false;
 		try {
-			app.config = app.libs._.merge(config, app.tools.json.load(app.configPath));
+			if (app.fs.existsSync(app.configPath)) {
+				app.config = app.libs._.merge(config, app.tools.json.load(app.configPath));
+				loaded = true;
+			}
 		} catch (_) {
 			app.log.error(`Erron in config file at ${app.configPath}`);
+		}
+
+		if (!loaded) {
+			app.config = config;
+
+			app.tools.json.save(app.configPath, app.config);
 		}
 	}
 
@@ -69,6 +79,7 @@ ndapp({
 		() => new (require("./components/bandcamp/BandcampDownloadManager"))()
 	],
 	enums: {
+		MUSIC_SERVICE_TYPES: require("./constants/musicServiceTypes"),
 		UPLOADER_TYPES: require("./constants/uploaderTypes")
 	},
 	constants: {
@@ -85,7 +96,7 @@ ndapp({
 		openDirectoryInExplorer: require("./tools/openDirectoryInExplorer")
 	},
 	specials: {
-		name: ndapp.libs._.last(packageInfo.name.split("/")),
-		version: packageInfo.version
+		name,
+		version
 	}
 });
