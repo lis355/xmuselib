@@ -97,6 +97,7 @@ ndapp({
 	},
 	specials: {
 		name,
-		version
+		version,
+		packageInfo
 	}
 });

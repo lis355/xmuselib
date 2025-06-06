@@ -11,6 +11,7 @@
 			"skipFiles": [
 				"<node_internals>/**"
 			],
+			"console": "integratedTerminal",
 			"program": "${workspaceFolder}/main.js",
 			"env": {
 				"DEVELOPER_ENVIRONMENT": "true"
@@ -24,6 +25,7 @@
 			"skipFiles": [
 				"<node_internals>/**"
 			],
+			"console": "integratedTerminal",
 			"program": "${workspaceFolder}/main.js",
 			"args": [
 				"processLibrary"
@@ -36,6 +38,7 @@
 			"skipFiles": [
 				"<node_internals>/**"
 			],
+			"console": "integratedTerminal",
 			"program": "${workspaceFolder}/main.js",
 			"env": {
 				"DEBUG_FILE_CACHE_ENABLED": "false"
@@ -45,15 +48,6 @@
 				// "https://music.yandex.ru/album/$ID"
 				// "https://***.bandcamp.com/album/***"
 			]
-		},
-		{
-			"name": "scripts/createGlobalBatFileStartScript",
-			"type": "node",
-			"request": "launch",
-			"skipFiles": [
-				"<node_internals>/**"
-			],
-			"program": "${workspaceFolder}/scripts/createGlobalBatFileStartScript.js"
 		}
 	]
 }

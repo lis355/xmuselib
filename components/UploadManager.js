@@ -146,21 +146,27 @@ module.exports = class UploadManager extends ndapp.ApplicationComponent {
 	}
 
 	createUploaders() {
-		this.uploaders = app.config.uploaders.mapToObject(uploaderInfo => {
-			const uploaderInfoType = uploaderInfo.type;
+		this.uploaders = app.config.uploaders.map(uploaderInfo => {
+			const uploaderType = uploaderInfo.type;
 			let uploader;
 
-			switch (uploaderInfoType) {
+			switch (uploaderType) {
 				case UPLOADER_TYPES.DISK: uploader = new FsDiskUploader(uploaderInfo); break;
 				case UPLOADER_TYPES.FTP_NET: uploader = new FtpNetUploader(uploaderInfo); break;
-				default: throw new Error(uploaderInfoType);
+				default: throw new Error(uploaderType);
 			}
 
-			return { key: uploaderInfoType, value: uploader };
+			return { uploaderType, uploader };
 		});
+
+		if (this.uploaders.length === 0) {
+			app.log.error("No uploaders, specify them in the config");
+
+			return app.quit();
+		}
 	}
 
 	async uploadAlbum(albumInfo) {
-		for (const uploader of Object.values(this.uploaders)) await uploader.uploadAlbum(albumInfo);
+		for (const { uploader } of this.uploaders) await uploader.uploadAlbum(albumInfo);
 	}
 };

@@ -6,11 +6,11 @@ const { MUSIC_SERVICE_TYPES } = app.enums;
 module.exports = class CliCommandsManager extends ndapp.ApplicationComponent {
 	async initialize() {
 		await super.initialize();
+
+		await this.drawLogo();
 	}
 
-	async run() {
-		await super.run();
-
+	async drawLogo() {
 		let logo = await figlet.text(app.name, {
 			font: "ANSI Shadow"
 		});
@@ -18,10 +18,14 @@ module.exports = class CliCommandsManager extends ndapp.ApplicationComponent {
 		logo = logo.split("\n").filter(s => Boolean(s.trim())).join(app.os.EOL);
 
 		console.log(logo);
-		console.log(`v ${app.version}`);
+		console.log(`${app.packageInfo.name} version ${app.version} by ${app.packageInfo.author.name} (${app.packageInfo.author.url})`);
 		console.log(`[userData] located at ${app.getUserDataPath()}`);
 		console.log(`[config] located at ${app.configPath}`);
 		console.log();
+	}
+
+	async run() {
+		await super.run();
 
 		const program = new Command();
 
@@ -34,9 +38,9 @@ module.exports = class CliCommandsManager extends ndapp.ApplicationComponent {
 			.description("Open config for manual editing")
 			.action(this.openConfigCommand.bind(this));
 
-		program.command("processLibrary")
-			.description("Check all files and transform music library to strong format")
-			.action(this.processLibraryCommand.bind(this));
+		// program.command("processLibrary")
+		// 	.description("Check all files and transform music library to strong format")
+		// 	.action(this.processLibraryCommand.bind(this));
 
 		program.command("download")
 			.alias("d")
@@ -95,6 +99,6 @@ module.exports = class CliCommandsManager extends ndapp.ApplicationComponent {
 		if (urlsByServices[MUSIC_SERVICE_TYPES.YANDEX].length > 0) await app.yandexMusicDownloadManager.downloadAlbums({ urls: urlsByServices[MUSIC_SERVICE_TYPES.YANDEX] });
 		if (urlsByServices[MUSIC_SERVICE_TYPES.BANDCAMP].length > 0) await app.bandcampDownloadManager.downloadAlbums({ urls: urlsByServices[MUSIC_SERVICE_TYPES.BANDCAMP] });
 
-		app.quit();
+		return app.quit();
 	}
 };
