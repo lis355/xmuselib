@@ -12,12 +12,15 @@ class AppManager extends ndapp.Application {
 	constructor() {
 		super();
 
-		const errorHandler = error => {
-			app.log.error(error.stack);
+		this.onUncaughtException = error => {
+			const outputter = (app && app.log && app.log.error) ? app.log.error : console.error;
+			outputter(error ? error.stack : "Unknown exception");
 		};
 
-		this.onUncaughtException = errorHandler;
-		this.onUnhandledRejection = errorHandler;
+		this.onUnhandledRejection = error => {
+			const outputter = (app && app.log && app.log.error) ? app.log.error : console.error;
+			outputter(error ? error.stack : "Unknown rejection");
+		};
 	}
 
 	getUserDataPath(...paths) {
