@@ -58,7 +58,7 @@ module.exports = class CliCommandsManager extends ndapp.ApplicationComponent {
 	}
 
 	async openConfigCommand() {
-		await app.tools.openDirectoryInExplorer(app.path.win32.resolve(app.configPath));
+		await app.tools.openDirectoryInExplorer(app.configPath);
 	}
 
 	async processLibraryCommand() {

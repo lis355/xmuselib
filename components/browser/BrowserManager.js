@@ -23,8 +23,20 @@ module.exports = class BrowserManager extends ndapp.ApplicationComponent {
 
 		this.browser = new sider.Browser();
 
+		let executablePath;
+		switch (process.platform) {
+			case "linux":
+				executablePath = "/opt/google/chrome/chrome";
+				break;
+			case "win32":
+				executablePath = "C:/Program Files/Google/Chrome/Application/chrome.exe";
+				break;
+			default:
+				throw new Error(`Unsupported platform: ${process.platform}`);
+		}
+
 		await this.browser.launch({
-			executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
+			executablePath,
 			args
 		});
 

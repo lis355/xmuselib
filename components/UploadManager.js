@@ -64,7 +64,7 @@ class FsDiskUploader extends FsUploader {
 			app.log.info("Завершено");
 		}
 
-		await app.tools.openDirectoryInExplorer(app.path.win32.resolve(albumDestinationFolder));
+		await app.tools.openDirectoryInExplorer(albumDestinationFolder);
 
 		app.log.info(`Завершено ${albumDestinationFolder}`);
 	}

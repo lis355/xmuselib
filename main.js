@@ -8,6 +8,17 @@ const DEVELOPER_ENVIRONMENT = process.env.DEVELOPER_ENVIRONMENT === "true";
 const name = ndapp.libs._.last(packageInfo.name.split("/"));
 const version = packageInfo.version;
 
+function getApplicationDataDirectory() {
+	switch (process.platform) {
+		case "linux":
+			return app.path.resolve(process.env.HOME, ".local", "share");
+		case "win32":
+			return app.path.resolve(process.env.APPDATA);
+		default:
+			throw new Error(`Unsupported platform: ${process.platform}`);
+	}
+}
+
 class AppManager extends ndapp.Application {
 	constructor() {
 		super();
@@ -28,7 +39,7 @@ class AppManager extends ndapp.Application {
 	}
 
 	async initialize() {
-		this.dataDirectory = app.path.resolve(process.env.APPDATA, name);
+		this.dataDirectory = app.path.resolve(getApplicationDataDirectory(), name);
 		app.fs.ensureDirSync(this.dataDirectory);
 
 		this.loadConfig();

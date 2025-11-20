@@ -435,10 +435,11 @@ class YandexMusicDownloaderInterfaceSpring2025Manager extends ndapp.ApplicationC
 	}
 
 	async isLogined() {
-		return hasSelector({
-			page: app.browserManager.page,
-			selector: "button.UserID-Account"
-		});
+		if (await hasSelector({ page: app.browserManager.page, selector: "[class*=NavbarDesktopUnauthorizedBar]" })) return false;
+
+		if (await hasSelector({ page: app.browserManager.page, selector: "[class*=UserProfile_userName]" })) return true;
+
+		return false;
 	}
 
 	async getAlbumInfoWithTrackInfos(albumId) {
