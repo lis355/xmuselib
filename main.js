@@ -90,7 +90,8 @@ ndapp({
 		() => new (require("./components/UploadManager"))(),
 		() => new (require("./components/browser/BrowserManager"))(),
 		() => new (require("./components/yandexMusic/YandexMusicDownloadManager"))(),
-		() => new (require("./components/bandcamp/BandcampDownloadManager"))()
+		() => new (require("./components/bandcamp/BandcampDownloadManager"))(),
+		() => new (require("./components/zvukCom/ZvukComDownloadManager"))()
 	],
 	enums: {
 		MUSIC_SERVICE_TYPES: require("./constants/musicServiceTypes"),

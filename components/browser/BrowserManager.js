@@ -63,6 +63,8 @@ module.exports = class BrowserManager extends ndapp.ApplicationComponent {
 				return resolve(page);
 			});
 		});
+
+		this.events.emit("opened");
 	}
 
 	async processResponseFailed(params) {

@@ -46,7 +46,7 @@ module.exports = class CliCommandsManager extends ndapp.ApplicationComponent {
 			.alias("d")
 			.alias("down")
 			.description("Download music from Yandex.Music (with browser), from Bandcamp")
-			.argument("[albums]", "Yandex.Music album urls, Bandcamp album urls (comma or space separated)")
+			.argument("[albums]", "Yandex.Music/Bandcamp/ZvukCom album urls (comma or space separated)")
 			.action(this.downloadCommand.bind(this));
 
 		// чтобы не закрывалось в разработке
@@ -72,7 +72,8 @@ module.exports = class CliCommandsManager extends ndapp.ApplicationComponent {
 
 		const urlsByServices = {
 			[MUSIC_SERVICE_TYPES.YANDEX]: [],
-			[MUSIC_SERVICE_TYPES.BANDCAMP]: []
+			[MUSIC_SERVICE_TYPES.BANDCAMP]: [],
+			[MUSIC_SERVICE_TYPES.ZVUK_COM]: []
 		};
 
 		albumUrls.forEach(albumUrl => {
@@ -93,11 +94,17 @@ module.exports = class CliCommandsManager extends ndapp.ApplicationComponent {
 				if (!/https:\/\/[^/]+\.bandcamp\.com\/album\/[^/]+/.test(url.href)) throw new Error(`Bad url ${albumUrl}`);
 
 				urlsByServices[MUSIC_SERVICE_TYPES.BANDCAMP].push(url);
+			} else if (url.host.includes("zvuk.com")) {
+				// "https://zvuk.com/release/***"
+				if (!/https:\/\/zvuk\.com\/release\/[^/]+/.test(url.href)) throw new Error(`Bad url ${albumUrl}`);
+
+				urlsByServices[MUSIC_SERVICE_TYPES.ZVUK_COM].push(url);
 			} else throw new Error(`Bad url ${albumUrl}`);
 		});
 
 		if (urlsByServices[MUSIC_SERVICE_TYPES.YANDEX].length > 0) await app.yandexMusicDownloadManager.downloadAlbums({ urls: urlsByServices[MUSIC_SERVICE_TYPES.YANDEX] });
 		if (urlsByServices[MUSIC_SERVICE_TYPES.BANDCAMP].length > 0) await app.bandcampDownloadManager.downloadAlbums({ urls: urlsByServices[MUSIC_SERVICE_TYPES.BANDCAMP] });
+		if (urlsByServices[MUSIC_SERVICE_TYPES.ZVUK_COM].length > 0) await app.zvukComDownloadManager.downloadAlbums({ urls: urlsByServices[MUSIC_SERVICE_TYPES.ZVUK_COM] });
 
 		return app.quit();
 	}
