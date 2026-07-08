@@ -7,8 +7,6 @@ const formatSize = require("../../tools/formatSize");
 
 // const EventEmitter = require("events");
 
-// const sharp = require("sharp");
-
 // eslint-disable-next-line no-unused-vars
 // class YandexMusicBrowserOldManager extends ndapp.ApplicationComponent {
 // 	async initialize() {
@@ -96,10 +94,9 @@ const formatSize = require("../../tools/formatSize");
 // 			if (!albumInfo.cover.downloaded) {
 // 				const body = await app.browserManager.page.network.getResponseBody(params.requestId);
 
-// 				const image = await sharp(body)
+// 				const image = await JpegBufferImage.fromBuffer(body)
 // 					.resize(CoverInfo.DEFAULT_COVER_SIZE, CoverInfo.DEFAULT_COVER_SIZE)
-// 					.jpeg({ quality: 100 })
-// 					.toBuffer();
+// 					.getJpegBuffer();
 
 // 				app.fs.outputFileSync(albumInfo.cover.filePath, image);
 

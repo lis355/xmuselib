@@ -1,8 +1,7 @@
-const sharp = require("sharp");
-
 const { CoverInfo, TrackInfo, AlbumInfo, getTrackInfoText, getAlbumInfoText } = require("../entities/EntityInfos");
 const { updateTagsInTrackInfo } = require("../../tools/tags");
 const formatSize = require("../../tools/formatSize");
+const JpegBufferImage = require("../../tools/JpegBufferImage");
 
 function tryParseJson(data) {
 	try {
@@ -152,10 +151,8 @@ module.exports = class BandcampDownloadManager extends ndapp.ApplicationComponen
 		const response = await fetch(coverInfo.url);
 		const responseBuffer = Buffer.from(await response.arrayBuffer());
 
-		imageBuffer = await sharp(responseBuffer)
-			.resize(CoverInfo.DEFAULT_COVER_SIZE, CoverInfo.DEFAULT_COVER_SIZE)
-			.jpeg({ quality: 100 })
-			.toBuffer();
+		const image = await JpegBufferImage.fromBuffer(responseBuffer);
+		imageBuffer = await image.resize(CoverInfo.DEFAULT_COVER_SIZE, CoverInfo.DEFAULT_COVER_SIZE).getJpegBuffer();
 
 		// app.fs.writeFileSync(app.getUserDataPath("cover.jpg"), imageBuffer);
 

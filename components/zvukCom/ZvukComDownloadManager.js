@@ -1,9 +1,8 @@
-const sharp = require("sharp");
-
 const { CoverInfo, TrackInfo, AlbumInfo, getTrackInfoText, getAlbumInfoText } = require("../entities/EntityInfos");
 const { updateTagsInTrackInfo } = require("../../tools/tags");
 const { hasSelector, waitForSelector } = require("../browser/pageUtils");
 const formatSize = require("../../tools/formatSize");
+const JpegBufferImage = require("../../tools/JpegBufferImage");
 
 class ZvukComCoverInfo extends CoverInfo {
 	constructor(url, entityInfo) {
@@ -220,17 +219,15 @@ module.exports = class ZvukComDownloadManager extends ndapp.ApplicationComponent
 	async downloadCover(coverInfo) {
 		app.logsManager.log(`Start downloading cover ${getAlbumInfoText(coverInfo.entityInfo)}`);
 
-		const imageBuffer = await this.downloadUrlToBuffer(coverInfo.url);
+		const responseBuffer = await this.downloadUrlToBuffer(coverInfo.url);
 
-		const imageProcessedBuffer = await sharp(imageBuffer)
-			.resize(CoverInfo.DEFAULT_COVER_SIZE, CoverInfo.DEFAULT_COVER_SIZE)
-			.jpeg({ quality: 100 })
-			.toBuffer();
+		const image = await JpegBufferImage.fromBuffer(responseBuffer);
+		const imageBuffer = await image.resize(CoverInfo.DEFAULT_COVER_SIZE, CoverInfo.DEFAULT_COVER_SIZE).getJpegBuffer();
 
-		// app.fs.writeFileSync(app.getUserDataPath("cover.jpg"), imageProcessedBuffer);
-		// imageProcessedBuffer = app.fs.readFileSync(app.getUserDataPath("cover.jpg"));
+		// app.fs.writeFileSync(app.getUserDataPath("cover.jpg"), imageBuffer);
+		// imageBuffer = app.fs.readFileSync(app.getUserDataPath("cover.jpg"));
 
-		coverInfo.buffer = imageProcessedBuffer;
+		coverInfo.buffer = imageBuffer;
 
 		app.logsManager.log(`Finish downloading cover ${getAlbumInfoText(coverInfo.entityInfo)}, ${formatSize(coverInfo.buffer.byteLength)}`);
 	}

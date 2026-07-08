@@ -25,6 +25,9 @@ module.exports = class BrowserManager extends ndapp.ApplicationComponent {
 
 		let executablePath;
 		switch (process.platform) {
+			case "darwin":
+				executablePath = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+				break;
 			case "linux":
 				executablePath = "/opt/google/chrome/chrome";
 				break;

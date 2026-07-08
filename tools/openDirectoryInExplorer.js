@@ -2,6 +2,9 @@ const { spawn } = require("child_process");
 
 module.exports = async function openDirectoryInExplorer(directory) {
 	switch (process.platform) {
+		case "darwin":
+			spawn("open", [directory], { detached: true }).unref();
+			break;
 		case "linux":
 			spawn("xdg-open", [directory], { detached: true }).unref();
 			break;

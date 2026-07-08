@@ -10,6 +10,8 @@ const version = packageInfo.version;
 
 function getApplicationDataDirectory() {
 	switch (process.platform) {
+		case "darwin":
+			return app.path.resolve(process.env.HOME, "Library", "Application Support");
 		case "linux":
 			return app.path.resolve(process.env.HOME, ".local", "share");
 		case "win32":

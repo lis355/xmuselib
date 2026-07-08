@@ -1,5 +1,4 @@
-const sharp = require("sharp");
-
+const JpegBufferImage = require("../tools/JpegBufferImage");
 const NodeID3 = require("../libraries/node-id3");
 
 const LIBRARY_SUBDIRECTORIES = new ndapp.enum([
@@ -99,17 +98,13 @@ class LibraryProcessor {
 
 		const coverPngFileInfo = albumFiles.find(fileInfo => fileInfo.fileName.toLowerCase() === COVER_PNG_FILENAME);
 		if (coverPngFileInfo) {
-			const coverPngImage = await sharp(app.fs.readFileSync(coverPngFileInfo.filePath));
-			const coverPngImageMetadata = await coverPngImage.metadata();
+			const coverImage = await JpegBufferImage.fromBuffer(app.fs.readFileSync(coverPngFileInfo.filePath));
+			const size = Math.min(COVER_MAX_SIZE, coverImage.width, coverImage.height);
 
-			const size = Math.min(COVER_MAX_SIZE, coverPngImageMetadata.width, coverPngImageMetadata.height);
-
-			const imageBuffer = await coverPngImage
-				.resize(size, size)
-				.jpeg({ quality: 100 })
-				.toBuffer();
-
-			app.fs.outputFileSync(app.path.posix.join(coverPngFileInfo.fileDirectory, COVER_JPEG_FILENAME), imageBuffer);
+			app.fs.outputFileSync(
+				app.path.posix.join(coverPngFileInfo.fileDirectory, COVER_JPEG_FILENAME),
+				await coverImage.resize(size, size).getJpegBuffer()
+			);
 			app.fs.removeSync(coverPngFileInfo.filePath);
 		}
 
@@ -117,16 +112,11 @@ class LibraryProcessor {
 		if (coverJpgFileInfo) {
 			const coverJpgFileHash = this.fileHash(coverJpgFileInfo.filePath, coverJpgFileInfo.stats);
 			if (!this.cache.has(coverJpgFileHash)) {
-				const coverJpgImage = await sharp(app.fs.readFileSync(coverJpgFileInfo.filePath));
-				const coverJpgImageMetadata = await coverJpgImage.metadata();
-
-				const size = Math.min(COVER_MAX_SIZE, coverJpgImageMetadata.width, coverJpgImageMetadata.height);
-				if (coverJpgImageMetadata.width !== size ||
-					coverJpgImageMetadata.height !== size) {
-					const imageBuffer = await coverJpgImage
-						.resize(size, size)
-						.jpeg({ quality: 100 })
-						.toBuffer();
+				const coverJpgImage = await JpegBufferImage.fromBuffer(app.fs.readFileSync(coverJpgFileInfo.filePath));
+				const size = Math.min(COVER_MAX_SIZE, coverJpgImage.width, coverJpgImage.height);
+				if (coverJpgImage.width !== size ||
+					coverJpgImage.height !== size) {
+					const imageBuffer = await coverJpgImage.resize(size, size).getJpegBuffer();
 
 					app.fs.outputFileSync(app.path.posix.join(coverJpgFileInfo.fileDirectory, COVER_JPEG_FILENAME), imageBuffer);
 				}

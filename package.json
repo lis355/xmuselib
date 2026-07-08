@@ -20,10 +20,10 @@
 		"commander": "^10.0.0",
 		"figlet": "^1.8.1",
 		"filenamify": "^4.2.0",
+		"jimp": "^1.6.1",
 		"jsdom": "^26.1.0",
 		"ndapp": "^1.0.17",
 		"node-id3": "^0.2.9",
-		"sharp": "^0.30.4",
 		"url-join": "^4.0.0"
 	},
 	"devDependencies": {
