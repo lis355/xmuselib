@@ -56,7 +56,7 @@ module.exports = class ZvukComDownloadManager extends ndapp.ApplicationComponent
 	}
 
 	async isLogined() {
-		if (await hasSelector({ page: app.browserManager.page, selector: "[class*=Header_avatarText__]" })) return true;
+		if (await hasSelector({ page: app.browserManager.page, selector: "[class*=ProfileDropdown_avatarImageAnimated]" })) return true;
 
 		return false;
 	}
@@ -105,7 +105,7 @@ module.exports = class ZvukComDownloadManager extends ndapp.ApplicationComponent
 
 		await waitForSelector({
 			page: app.browserManager.page,
-			selector: "[class*=Header_avatarText__]"
+			selector: "[class*=Header_buttons__]"
 		});
 
 		if (!await this.isLogined()) throw new Error("Not logined");
