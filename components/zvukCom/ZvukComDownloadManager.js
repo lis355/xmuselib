@@ -199,21 +199,25 @@ module.exports = class ZvukComDownloadManager extends ndapp.ApplicationComponent
 	}
 
 	async downloadUrlToBuffer(url) {
-		const bufferInBase64 = await app.browserManager.page.evaluateInFrame({
-			frame: app.browserManager.page.mainFrame,
-			func: async url => {
-				const response = await window.originalFunctions.fetch(url);
+		const asyncBufferDownloader = async url => {
+			const bufferInBase64 = await app.browserManager.page.evaluateInFrame({
+				frame: app.browserManager.page.mainFrame,
+				func: async url => {
+					const response = await window.originalFunctions.fetch(url);
 
-				const arrayBuffer = await response.arrayBuffer();
+					const arrayBuffer = await response.arrayBuffer();
 
-				return window.arrayBufferToBase64String(arrayBuffer);
-			},
-			args: [url]
-		});
+					return window.arrayBufferToBase64String(arrayBuffer);
+				},
+				args: [url]
+			});
 
-		const buffer = Buffer.from(bufferInBase64, "base64");
+			const buffer = Buffer.from(bufferInBase64, "base64");
 
-		return buffer;
+			return buffer;
+		};
+
+		return app.tools.mediaBufferCache.getMediaBuffer(asyncBufferDownloader, url);
 	}
 
 	async downloadCover(coverInfo) {

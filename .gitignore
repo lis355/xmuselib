@@ -3,5 +3,8 @@ node_modules/
 yarn.lock
 package-lock.json
 
+.env.*
+
 userData/
 onRun.js
+

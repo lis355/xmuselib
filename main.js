@@ -1,3 +1,9 @@
+const dotenv = require("dotenv-flow");
+
+dotenv.config({
+	path: process.cwd()
+});
+
 const ndapp = require("ndapp");
 
 const config = require("./config");
@@ -38,6 +44,10 @@ class AppManager extends ndapp.Application {
 
 	getUserDataPath(...paths) {
 		return app.path.resolve(this.dataDirectory, "userData", ...paths);
+	}
+
+	getTempPath(...paths) {
+		return app.path.resolve(app.getUserDataPath("temp", ...paths));
 	}
 
 	async initialize() {
@@ -109,6 +119,7 @@ ndapp({
 		formatTrackNumber: require("./tools/formatTrackNumber"),
 		getFileInfosFromDirectory: require("./tools/getFileInfosFromDirectory"),
 		hash: require("./tools/hash"),
+		mediaBufferCache: require("./tools/MediaBufferCache"),
 		nameCase: require("./tools/nameCase"),
 		openDirectoryInExplorer: require("./tools/openDirectoryInExplorer")
 	},
