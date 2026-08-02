@@ -1,6 +1,6 @@
 const NodeID3 = require("../../libraries/node-id3");
 
-function updateTagsInTrackInfo(trackInfo, albumInfo) {
+function updateTagsInTrackInfoBuffer(trackInfo, albumInfo) {
 	const tags = {
 		artist: trackInfo.artist,
 		album: albumInfo.name,
@@ -17,5 +17,5 @@ function updateTagsInTrackInfo(trackInfo, albumInfo) {
 }
 
 module.exports = {
-	updateTagsInTrackInfo
+	updateTagsInTrackInfoBuffer
 };

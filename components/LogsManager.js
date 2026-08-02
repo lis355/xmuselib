@@ -7,10 +7,18 @@ module.exports = class LogsManager extends ndapp.ApplicationComponent {
 		app.log.info(log);
 
 		if (app.browserManager.page) {
-			// NOTE pass promise cause just logging
+			// NOTE don't await cause just logging
 			app.browserManager.page.evaluateInFrame({
 				frame: app.browserManager.page.mainFrame,
-				func: log => console.log(log),
+				func: log => {
+					let logger;
+					if (window.originalFunctions &&
+						window.originalFunctions.log) logger = window.originalFunctions.log;
+
+					if (!logger) logger = console.log;
+
+					logger(log);
+				},
 				args: [log]
 			});
 		}

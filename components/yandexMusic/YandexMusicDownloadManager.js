@@ -1,7 +1,6 @@
 const { CoverInfo, TrackInfo, AlbumInfo, getTrackInfoText, getAlbumInfoText } = require("../entities/EntityInfos");
 const { hasSelector, waitForSelector } = require("../browser/pageUtils");
-const { updateTagsInTrackInfo } = require("../../tools/tags");
-const formatSize = require("../../tools/formatSize");
+const { updateTagsInTrackInfoBuffer } = require("../../tools/tags");
 
 // ////////////////// OldInterfaceBefore2025 ////////////////////
 
@@ -629,7 +628,7 @@ class YandexMusicDownloaderInterfaceSpring2025Manager extends ndapp.ApplicationC
 		trackInfo.buffer = buffer;
 		trackInfo.extension = extension;
 
-		app.logsManager.log(`Finish downloading track ${getTrackInfoText(trackInfo)}, ${formatSize(buffer.byteLength)}`);
+		app.logsManager.log(`Finish downloading track ${getTrackInfoText(trackInfo)}, ${app.tools.formatSize(buffer.byteLength)}`);
 	}
 
 	async downloadCover(coverInfo) {
@@ -653,7 +652,7 @@ class YandexMusicDownloaderInterfaceSpring2025Manager extends ndapp.ApplicationC
 
 		coverInfo.buffer = buffer;
 
-		app.logsManager.log(`Finish downloading cover ${getAlbumInfoText(coverInfo.entityInfo)}, ${formatSize(buffer.byteLength)}`);
+		app.logsManager.log(`Finish downloading cover ${getAlbumInfoText(coverInfo.entityInfo)}, ${app.tools.formatSize(buffer.byteLength)}`);
 	}
 
 	async downloadAlbums(options) {
@@ -681,7 +680,7 @@ class YandexMusicDownloaderInterfaceSpring2025Manager extends ndapp.ApplicationC
 
 			for (const trackInfo of albumInfo.trackInfos) {
 				await this.downloadTrack(trackInfo);
-				updateTagsInTrackInfo(trackInfo, albumInfo);
+				updateTagsInTrackInfoBuffer(trackInfo, albumInfo);
 				// app.fs.writeFileSync(app.getUserDataPath("track.mp3"), trackInfo.buffer);
 			}
 

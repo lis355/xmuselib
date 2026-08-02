@@ -8,6 +8,22 @@ const LibraryManager = require("./LibraryManager");
 
 const { UPLOADER_TYPES } = app.enums;
 
+function clampFileName(filePath) {
+	const dir = app.path.dirname(filePath);
+	const ext = app.path.extname(filePath);
+	let name = app.path.basename(filePath, ext);
+
+	const maxLength = 240;
+	const extLength = ext.length;
+	const maxNameLength = maxLength - extLength;
+
+	if (name.length > maxNameLength) {
+		name = name.slice(0, maxNameLength);
+	}
+
+	return app.path.join(dir, name + ext);
+}
+
 class Uploader {
 	constructor(info) {
 		this.info = info;
@@ -34,7 +50,7 @@ class FsUploader extends Uploader {
 
 	getTrackDestinationFilePath(trackInfo, albumDestinationFolder) {
 		const trackFileName = app.tools.filenamify(`${app.tools.formatTrackNumber(trackInfo.trackNumber)}. ${trackInfo.artist} - ${trackInfo.albumInfo.name} (${trackInfo.albumInfo.year}) - ${trackInfo.name}.${trackInfo.extension}`);
-		const trackFilePath = app.path.posix.join(albumDestinationFolder, trackFileName);
+		const trackFilePath = clampFileName(app.path.posix.join(albumDestinationFolder, trackFileName));
 
 		return trackFilePath;
 	}

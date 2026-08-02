@@ -1,7 +1,6 @@
 const { CoverInfo, TrackInfo, AlbumInfo, getTrackInfoText, getAlbumInfoText } = require("../entities/EntityInfos");
-const { updateTagsInTrackInfo } = require("../../tools/tags");
+const { updateTagsInTrackInfoBuffer } = require("../../tools/tags");
 const { hasSelector, waitForSelector } = require("../browser/pageUtils");
-const formatSize = require("../../tools/formatSize");
 const JpegBufferImage = require("../../tools/JpegBufferImage");
 
 class ZvukComCoverInfo extends CoverInfo {
@@ -64,6 +63,7 @@ module.exports = class ZvukComDownloadManager extends ndapp.ApplicationComponent
 	async handleBrowserManagerOnOpened() {
 		function f() {
 			window.originalFunctions = {
+				log: window.console.log.bind(window.console),
 				fetch: window.fetch.bind(window)
 			};
 
@@ -87,11 +87,9 @@ module.exports = class ZvukComDownloadManager extends ndapp.ApplicationComponent
 			params.request.method === "POST" &&
 			params.request.hasPostData) {
 			const postData = JSON.parse(params.request.postData);
-			if (postData.operationName === "getStream" &&
-				this.waitForGetStreamResponseResolve) {
+			if (postData.operationName === "getStream") {
 				const json = await app.browserManager.page.network.getResponseJson(params);
-
-				this.waitForGetStreamResponseResolve(json);
+				if (this.waitForGetStreamResponseResolve) this.waitForGetStreamResponseResolve(json);
 			}
 		}
 	}
@@ -124,7 +122,7 @@ module.exports = class ZvukComDownloadManager extends ndapp.ApplicationComponent
 
 			const albumInfo = await this.getCurrentAlbumInfo();
 
-			await this.downloadCover(albumInfo.cover);
+			await this.downloadCover(albumInfo);
 			// app.fs.writeFileSync(app.getUserDataPath("cover.jpg"), albumInfo.cover.buffer);
 
 			const tracksAmount = await app.browserManager.page.evaluateInFrame({
@@ -135,9 +133,11 @@ module.exports = class ZvukComDownloadManager extends ndapp.ApplicationComponent
 			app.logsManager.log(`Finish fetch album information ${albumUrl}`);
 
 			for (let trackNumber = 0; trackNumber < tracksAmount; trackNumber++) {
-				const trackInfo = await this.getTrackInfoAndDownloadTrack(albumInfo, trackNumber);
-				updateTagsInTrackInfo(trackInfo, albumInfo);
+				const trackInfo = await this.getTrackInfo(albumInfo, trackNumber);
 				// app.fs.writeFileSync(app.getUserDataPath("track.mp3"), trackInfo.buffer);
+
+				await this.downloadTrack(trackInfo);
+				updateTagsInTrackInfoBuffer(trackInfo, albumInfo);
 
 				albumInfo.trackInfos.push(trackInfo);
 			}
@@ -147,29 +147,15 @@ module.exports = class ZvukComDownloadManager extends ndapp.ApplicationComponent
 	}
 
 	async getCurrentAlbumInfo() {
-		const id = await app.browserManager.page.evaluateInFrame({
+		const { id, name, artist, year, coverUrlsString } = await app.browserManager.page.evaluateInFrame({
 			frame: app.browserManager.page.mainFrame,
-			func: () => window.location.pathname.split("/").at(-1)
-		});
-
-		const name = await app.browserManager.page.evaluateInFrame({
-			frame: app.browserManager.page.mainFrame,
-			func: () => document.querySelector("[class*=HeaderTitlePage_]").textContent.trim()
-		});
-
-		const artist = await app.browserManager.page.evaluateInFrame({
-			frame: app.browserManager.page.mainFrame,
-			func: () => document.querySelector("[class*=ArtistLink_text__]").textContent.trim()
-		});
-
-		const year = await app.browserManager.page.evaluateInFrame({
-			frame: app.browserManager.page.mainFrame,
-			func: () => Number(document.querySelector("[class*=InfoContainer_releaseDateType__]").textContent.trim().split(/\s/g).at(-1))
-		});
-
-		const coverUrlsString = await app.browserManager.page.evaluateInFrame({
-			frame: app.browserManager.page.mainFrame,
-			func: () => document.querySelector("[class*=ActiveCover_container__] [class*=Image_root__] img").getAttribute("srcset")
+			func: () => ({
+				id: window.location.pathname.split("/").at(-1),
+				name: document.querySelector("[class*=HeaderTitlePage_]").textContent.trim(),
+				artist: document.querySelector("[class*=ArtistLink_text__]").textContent.trim(),
+				year: Number(document.querySelector("[class*=InfoContainer_releaseDateType__]").textContent.trim().split(/\s/g).at(-1)),
+				coverUrlsString: document.querySelector("[class*=ActiveCover_container__] [class*=Image_root__] img").getAttribute("srcset")
+			})
 		});
 
 		const coverUrl = coverUrlsString
@@ -199,11 +185,15 @@ module.exports = class ZvukComDownloadManager extends ndapp.ApplicationComponent
 	}
 
 	async downloadUrlToBuffer(url) {
-		const asyncBufferDownloader = async url => {
-			const bufferInBase64 = await app.browserManager.page.evaluateInFrame({
+		const bufferInBase64 = await app.tools.retry(async () => {
+			return app.browserManager.page.evaluateInFrame({
 				frame: app.browserManager.page.mainFrame,
 				func: async url => {
-					const response = await window.originalFunctions.fetch(url);
+					const DOWNLOAD_TIMEOUT_IN_MILLISECONDS = 15000;
+
+					const response = await window.originalFunctions.fetch(url, {
+						signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_IN_MILLISECONDS)
+					});
 
 					const arrayBuffer = await response.arrayBuffer();
 
@@ -211,33 +201,34 @@ module.exports = class ZvukComDownloadManager extends ndapp.ApplicationComponent
 				},
 				args: [url]
 			});
+		}, {
+			maxRetries: 3,
+			retryDelayInMilliseconds: 1000,
+			checkError: err => err.name.toLowerCase().includes("timeout")
+		});
 
-			const buffer = Buffer.from(bufferInBase64, "base64");
+		const buffer = Buffer.from(bufferInBase64, "base64");
 
-			return buffer;
-		};
-
-		return app.tools.mediaBufferCache.getMediaBuffer(asyncBufferDownloader, url);
+		return buffer;
 	}
 
-	async downloadCover(coverInfo) {
+	async downloadCover(albumInfo) {
+		const coverInfo = albumInfo.cover;
+
 		app.logsManager.log(`Start downloading cover ${getAlbumInfoText(coverInfo.entityInfo)}`);
 
-		const responseBuffer = await this.downloadUrlToBuffer(coverInfo.url);
+		const responseBuffer = await (app.tools.mediaBufferCache.cachify(this.downloadUrlToBuffer.bind(this, coverInfo.url)))(getAlbumInfoText(albumInfo));
 
 		const image = await JpegBufferImage.fromBuffer(responseBuffer);
 		const imageBuffer = await image.resize(CoverInfo.DEFAULT_COVER_SIZE, CoverInfo.DEFAULT_COVER_SIZE).getJpegBuffer();
 
-		// app.fs.writeFileSync(app.getUserDataPath("cover.jpg"), imageBuffer);
-		// imageBuffer = app.fs.readFileSync(app.getUserDataPath("cover.jpg"));
-
 		coverInfo.buffer = imageBuffer;
 
-		app.logsManager.log(`Finish downloading cover ${getAlbumInfoText(coverInfo.entityInfo)}, ${formatSize(coverInfo.buffer.byteLength)}`);
+		app.logsManager.log(`Finish downloading cover ${getAlbumInfoText(coverInfo.entityInfo)}, ${app.tools.formatSize(coverInfo.buffer.byteLength)}`);
 	}
 
-	async getTrackInfoAndDownloadTrack(albumInfo, trackNumber) {
-		const { id, name } = await app.browserManager.page.evaluateInFrame({
+	async getTrackInfo(albumInfo, trackNumber) {
+		const { id, name, artists } = await app.browserManager.page.evaluateInFrame({
 			frame: app.browserManager.page.mainFrame,
 			func: trackNumber => {
 				const elements = Array.from(document.querySelectorAll("[class*=TrackList_wrapper__] [class*=ContentItem_wrapper__]"));
@@ -245,50 +236,139 @@ module.exports = class ZvukComDownloadManager extends ndapp.ApplicationComponent
 
 				return {
 					id: element.getAttribute("data-entity-id"),
-					name: element.querySelector("[class*=Info_title__]").textContent.trim()
+					name: element.querySelector("[class*=Info_title__]").textContent.trim(),
+					artists: Array.from(element.querySelectorAll("[class*=Info_descriptionContainer__] [class*=Text_text][class*=Info_description__]"))
+						.map(element => element.textContent.trim())
 				};
 			},
 			args: [trackNumber]
 		});
 
+		let processedArtists = artists.map(app.tools.nameCase);
+		if (processedArtists.length === 0) throw new Error("Strange logic");
+
+		const artist = albumInfo.artist;
+
+		let processedName = name;
+
+		if (processedArtists[0] === albumInfo.artist) processedArtists = processedArtists.slice(1);
+		if (processedArtists.length > 0) processedName += ` (feat. ${processedArtists.join(", ")})`;
+
 		const trackInfo = new ZvukComTrackInfo({
 			albumInfo,
 			id,
-			artist: albumInfo.artist,
-			name,
+			artist,
+			name: processedName,
 			trackNumber: trackNumber + 1,
 			url: null,
 			extension: "mp3"
 		});
 
+		return trackInfo;
+	}
+
+	async getTrackDownloadUrl(trackInfo) {
+		return app.tools.retry(async () => {
+			const getStreamResponse = await this.getTrackStreamResponse(trackInfo);
+
+			const downloadUrl = getStreamResponse.data.mediaContents[0].stream.high;
+			if (!downloadUrl.includes(trackInfo.id)) throw new Error(`Bad download url ${getTrackInfoText(trackInfo)}`);
+
+			return downloadUrl;
+		}, {
+			maxRetries: 3,
+			retryDelayInMilliseconds: 1000
+		});
+	}
+
+	async getTrackStreamResponse(trackInfo) {
+		// app.logsManager.log(`Start fetching track stream ${getTrackInfoText(trackInfo)}`);
+
+		app.logsManager.log(`Press play on track ${trackInfo.trackNumber} - ${getTrackInfoText(trackInfo)} ...`);
+
+		const clear = () => {
+			this.waitForGetStreamResponseResolve = null;
+			this.waitForGetStreamResponseReject = null;
+			this.waitForGetStreamResponseTimeout = clearTimeout(this.waitForGetStreamResponseTimeout);
+		};
+
+		clear();
+
+		let streamResponse;
+
+		try {
+			streamResponse = await new Promise(async (resolve, reject) => {
+				const FETCH_STREAM_TIMEOUT_IN_MILLISECONDS = 1000 * 60;
+
+				this.waitForGetStreamResponseResolve = (...args) => {
+					clear();
+
+					return resolve(...args);
+				};
+
+				this.waitForGetStreamResponseReject = reason => {
+					clear();
+
+					return reject(reason);
+				};
+
+				this.waitForGetStreamResponseTimeout = setTimeout(() => {
+					this.waitForGetStreamResponseReject(new Error(`Timeout waiting for getStream response ${getTrackInfoText(trackInfo)}`));
+				}, FETCH_STREAM_TIMEOUT_IN_MILLISECONDS);
+
+				// try {
+				// 	await app.browserManager.page.evaluateInFrame({
+				// 		frame: app.browserManager.page.mainFrame,
+				// 		func: async trackName => {
+				// 			const WAITING_SCROLLING_TIMEOUT_IN_MILLISECONDS = 1000;
+
+				// 			const elements = Array.from(document.querySelectorAll("[class*=TrackList_wrapper__] [class*=ContentItem_wrapper__]"));
+				// 			const element = elements.find(element => {
+				// 				const name = element.querySelector("[class*=Info_title__]").textContent.trim();
+
+				// 				return name.toLowerCase() === trackName.toLowerCase();
+				// 			});
+
+				// 			if (!element) throw new Error("No element");
+
+				// 			const playButton = element.querySelector("[class*=Cover_cover__] button");
+
+				// 			playButton.scrollIntoView({ behavior: "instant", block: "center", inline: "center" });
+
+				// 			await new Promise(resolve => setTimeout(resolve, WAITING_SCROLLING_TIMEOUT_IN_MILLISECONDS));
+
+				// 			playButton.click();
+				// 		},
+				// 		args: [trackInfo.name]
+				// 	});
+				// } catch (err) {
+				// 	this.waitForGetStreamResponseReject(err);
+				// }
+			});
+		} catch (err) {
+			app.logsManager.log(`Error fetching track stream ${getTrackInfoText(trackInfo)} ${err.message}`);
+
+			throw err;
+		} finally {
+			clear();
+
+			// app.logsManager.log(`Finish fetching track stream ${getTrackInfoText(trackInfo)}`);
+		}
+
+		return streamResponse;
+	}
+
+	async downloadTrack(trackInfo) {
 		app.logsManager.log(`Start downloading track ${getTrackInfoText(trackInfo)}`);
 
-		const getStreamResponse = await new Promise(async (resolve, reject) => {
-			this.waitForGetStreamResponseResolve = resolve;
-			this.waitForGetStreamResponseReject = reject;
+		const responseBuffer = await (app.tools.mediaBufferCache.cachify(async () => {
+			trackInfo.url = await this.getTrackDownloadUrl(trackInfo, trackInfo.trackNumber);
 
-			await app.browserManager.page.evaluateInFrame({
-				frame: app.browserManager.page.mainFrame,
-				func: trackNumber => {
-					const playButtons = Array.from(document.querySelectorAll("[class*=TrackList_wrapper__] [class*=ContentItem_wrapper__] [class*=Cover_cover__] button"));
-					playButtons[trackNumber].click();
-				},
-				args: [trackNumber]
-			});
-		});
+			return this.downloadUrlToBuffer(trackInfo.url);
+		}))(getTrackInfoText(trackInfo));
 
-		this.waitForGetStreamResponseResolve = null;
-		this.waitForGetStreamResponseReject = null;
+		trackInfo.buffer = responseBuffer;
 
-		trackInfo.url = getStreamResponse.data.mediaContents[0].stream.high;
-
-		const buffer = await this.downloadUrlToBuffer(trackInfo.url);
-		// app.fs.writeFileSync(app.getUserDataPath("track.mp3"), buffer);
-
-		trackInfo.buffer = buffer;
-
-		app.logsManager.log(`Finish downloading track ${getTrackInfoText(trackInfo)}, ${formatSize(trackInfo.buffer.byteLength)}`);
-
-		return trackInfo;
+		app.logsManager.log(`Finish downloading track ${getTrackInfoText(trackInfo)}, ${app.tools.formatSize(trackInfo.buffer.byteLength)}`);
 	}
 };

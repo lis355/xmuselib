@@ -56,6 +56,8 @@ class AppManager extends ndapp.Application {
 
 		this.loadConfig();
 
+		app.tools.mediaBufferCache.initialize();
+
 		await super.initialize();
 	}
 
@@ -95,6 +97,9 @@ class AppManager extends ndapp.Application {
 
 ndapp({
 	app: new AppManager(),
+	log: {
+		file: DEVELOPER_ENVIRONMENT ? ndapp.path.resolve(process.cwd(), "log.txt") : false
+	},
 	components: [
 		() => new (require("./components/LogsManager"))(),
 		() => new (require("./components/CliCommandsManager"))(),
@@ -116,12 +121,15 @@ ndapp({
 		urljoin: require("url-join"),
 
 		filenamify: require("./tools/filenamify"),
+		formatSize: require("./tools/formatSize"),
 		formatTrackNumber: require("./tools/formatTrackNumber"),
 		getFileInfosFromDirectory: require("./tools/getFileInfosFromDirectory"),
 		hash: require("./tools/hash"),
 		mediaBufferCache: require("./tools/MediaBufferCache"),
 		nameCase: require("./tools/nameCase"),
-		openDirectoryInExplorer: require("./tools/openDirectoryInExplorer")
+		openDirectoryInExplorer: require("./tools/openDirectoryInExplorer"),
+		retry: require("./tools/retry"),
+		sleep: require("./tools/sleep")
 	},
 	specials: {
 		name,

@@ -1,3 +1,4 @@
+const { exec } = require("node:child_process");
 const EventEmitter = require("events");
 
 const sider = require("@lis355/sider");
@@ -10,6 +11,18 @@ module.exports = class BrowserManager extends ndapp.ApplicationComponent {
 	}
 
 	async openBrowser() {
+		// TODO HACK cause https://github.com/lis355/sider/issues/2
+		await new Promise((resolve, reject) => {
+			exec("pkill -f xmuselib", async (error, stdout, stderr) => {
+				// ошибка будет если процессов нет - нам пофиг
+				if (error) resolve();
+
+				await app.tools.sleep(1000);
+
+				return resolve();
+			});
+		});
+
 		const args = new sider.CLIArguments();
 
 		args.parseArrayArguments([

@@ -1,6 +1,5 @@
 const { CoverInfo, TrackInfo, AlbumInfo, getTrackInfoText, getAlbumInfoText } = require("../entities/EntityInfos");
-const { updateTagsInTrackInfo } = require("../../tools/tags");
-const formatSize = require("../../tools/formatSize");
+const { updateTagsInTrackInfoBuffer } = require("../../tools/tags");
 const JpegBufferImage = require("../../tools/JpegBufferImage");
 
 function tryParseJson(data) {
@@ -140,7 +139,7 @@ module.exports = class BandcampDownloadManager extends ndapp.ApplicationComponen
 		trackInfo.buffer = buffer;
 		trackInfo.extension = extension;
 
-		app.logsManager.log(`Finish downloading track ${getTrackInfoText(trackInfo)}, ${formatSize(responseBuffer.byteLength)}`);
+		app.logsManager.log(`Finish downloading track ${getTrackInfoText(trackInfo)}, ${app.tools.formatSize(responseBuffer.byteLength)}`);
 	}
 
 	async downloadCover(coverInfo) {
@@ -160,7 +159,7 @@ module.exports = class BandcampDownloadManager extends ndapp.ApplicationComponen
 
 		coverInfo.buffer = imageBuffer;
 
-		app.logsManager.log(`Finish downloading cover ${getAlbumInfoText(coverInfo.entityInfo)}, ${formatSize(imageBuffer.byteLength)}`);
+		app.logsManager.log(`Finish downloading cover ${getAlbumInfoText(coverInfo.entityInfo)}, ${app.tools.formatSize(imageBuffer.byteLength)}`);
 	}
 
 	async downloadAlbums(options) {
@@ -174,7 +173,7 @@ module.exports = class BandcampDownloadManager extends ndapp.ApplicationComponen
 
 			for (const trackInfo of albumInfo.trackInfos) {
 				await this.downloadTrack(trackInfo);
-				updateTagsInTrackInfo(trackInfo, albumInfo);
+				updateTagsInTrackInfoBuffer(trackInfo, albumInfo);
 				// app.fs.writeFileSync(app.getUserDataPath("track.mp3"), trackInfo.buffer);
 			}
 
